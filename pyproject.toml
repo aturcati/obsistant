@@ -1,20 +1,37 @@
 [project]
-name = "obsidian_formatter"
+name = "obsidian-formatter"
 version = "0.1.0"
-description = "CLI tool to convert inline #tags to YAML front-matter in an Obsidian vault."
+description = "CLI tool to extract #tags from markdown content and add them to YAML frontmatter in Obsidian vaults."
 authors = [{name = "Andrea Turcati", email = "andrea@example.com"}]
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
+keywords = ["obsidian", "markdown", "tags", "frontmatter", "yaml"]
 
 dependencies = [
   "pyyaml>=6.0",
   "click>=8.1",
-  "rich>=13.7"        # nice logging
+  "mdformat>=0.7.22",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
 ]
 
 [project.scripts]
 obsidian-formatter = "obsidian_formatter.cli:main"
 
-[tool.uv]            # optional: uv-specific config
-use-pip-compat = true
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.black]
+line-length = 88
+
+[tool.ruff]
+line-length = 88
