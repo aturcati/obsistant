@@ -1,14 +1,16 @@
-# Obsidian Formatter
+# Obsistant
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A powerful CLI tool for processing Obsidian vaults to extract inline `#tags` from markdown content and add them to YAML frontmatter, along with automatic file creation date insertion and optional markdown formatting.
+A powerful CLI tool for processing Obsidian vaults to extract inline `#tags` from markdown content and add them to YAML frontmatter, along with automatic creation and modification date insertion and optional markdown formatting.
 
 ## Features
 
 - **Tag Extraction**: Automatically extracts inline `#tags` from markdown content and adds them to YAML frontmatter
-- **Creation Date**: Adds file creation dates to frontmatter if not already present
+- **Creation Date**: Adds creation dates using the earliest date between body content and file metadata
+- **Modification Date**: Adds file modification dates to frontmatter
+- **Meeting Transcript Links**: Extracts meeting transcript URLs from "Chat with meeting transcript:" text
 - **Markdown Formatting**: Optional standardized markdown formatting using `mdformat`
 - **Safe Processing**: Creates backup files before making any changes
 - **Dry Run Mode**: Preview changes without modifying files
@@ -19,37 +21,37 @@ A powerful CLI tool for processing Obsidian vaults to extract inline `#tags` fro
 
 ### Using uv (Recommended)
 
-[uv](https://github.com/astral-sh/uv) is a fast Python package manager. Install obsidian-formatter with:
+[uv](https://github.com/astral-sh/uv) is a fast Python package manager. Install obsistant with:
 
 ```bash
-uv add obsidian-formatter
+uv add obsistant
 ```
 
 Or install it globally:
 
 ```bash
-uv tool install obsidian-formatter
+uv tool install obsistant
 ```
 
 ### Using pip
 
 ```bash
-pip install obsidian-formatter
+pip install obsistant
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/obsidian-formatter.git
-cd obsidian-formatter
+git clone https://github.com/yourusername/obsistant.git
+cd obsistant
 uv sync
 ```
 
 ### Development Installation
 
 ```bash
-git clone https://github.com/yourusername/obsidian-formatter.git
-cd obsidian-formatter
+git clone https://github.com/yourusername/obsistant.git
+cd obsistant
 uv sync --dev
 ```
 
@@ -58,13 +60,26 @@ uv sync --dev
 ### Basic Usage
 
 ```bash
-obsidian-formatter /path/to/your/vault
+obsistant /path/to/your/vault
 ```
 
-### Command Line Options
+### Available Commands
+
+The tool supports multiple commands:
 
 ```bash
-obsidian-formatter [OPTIONS] VAULT_PATH
+obsistant [OPTIONS] COMMAND [ARGS]...
+```
+
+**Commands:**
+- `process`: Process Obsidian vault to extract tags and add metadata (default)
+- `clear-backups`: Clear all backup files for the specified vault
+- `restore`: Restore corrupted files from backups
+
+### Process Command
+
+```bash
+obsistant process [OPTIONS] VAULT_PATH
 ```
 
 **Arguments:**
@@ -77,45 +92,89 @@ obsidian-formatter [OPTIONS] VAULT_PATH
 - `-v, --verbose`: Enable verbose output
 - `--help`: Show help message and exit
 
+### Clear Backups Command
+
+```bash
+obsistant clear-backups [OPTIONS] VAULT_PATH
+```
+
+Removes all backup files for the specified vault.
+
+**Options:**
+- `-v, --verbose`: Enable verbose output
+
+### Restore Command
+
+```bash
+obsistant restore [OPTIONS] VAULT_PATH
+```
+
+Restore corrupted files from backups.
+
+**Options:**
+- `--file FILE`: Restore a specific file instead of all files
+- `-v, --verbose`: Enable verbose output
+
 ### Examples
 
 #### Quick Start Examples
 ```bash
 # Preview changes without modifying files
-obsidian-formatter ~/Obsidian/Work --dry-run
+obsistant ~/Obsidian/Work --dry-run
 
 # Process vault and apply changes
-obsidian-formatter ~/Obsidian/Work
+obsistant ~/Obsidian/Work
 ```
 
 #### Basic Processing
 ```bash
 # Process vault with default settings
-obsidian-formatter ~/Documents/MyVault
+obsistant ~/Documents/MyVault
 ```
 
 #### Dry Run (Preview Changes)
 ```bash
 # See what would be changed without making modifications
-obsidian-formatter --dry-run ~/Documents/MyVault
+obsistant --dry-run ~/Documents/MyVault
 ```
 
 #### With Formatting
 ```bash
 # Process vault and format markdown for consistency
-obsidian-formatter --format ~/Documents/MyVault
+obsistant --format ~/Documents/MyVault
 ```
 
 #### Custom Backup Extension
 ```bash
 # Use custom backup file extension
-obsidian-formatter --backup-ext .backup ~/Documents/MyVault
+obsistant --backup-ext .backup ~/Documents/MyVault
 ```
 
 #### Verbose Output
 ```bash
 # Enable detailed logging
-obsidian-formatter --verbose ~/Documents/MyVault
+obsistant --verbose ~/Documents/MyVault
+```
+
+#### Managing Backups
+```bash
+# Clear all backup files for a vault
+obsistant clear-backups ~/Documents/MyVault
+
+# Restore all files from backups
+obsistant restore ~/Documents/MyVault
+
+# Restore a specific file from backup
+obsistant restore ~/Documents/MyVault --file ~/Documents/MyVault/note.md
+```
+
+#### Using New Command Structure
+```bash
+# Explicitly use the process command
+obsistant process ~/Documents/MyVault --dry-run
+
+# Process with formatting
+obsistant process ~/Documents/MyVault --format
 ```
 
 ## How It Works
@@ -162,6 +221,8 @@ tags:
 
 # Content
 
+Date: 2024-01-10
+
 This has a #new-tag in it.
 ```
 
@@ -169,7 +230,8 @@ This has a #new-tag in it.
 ```markdown
 ---
 author: John Doe
-created: '2024-01-15'
+created: '2024-01-10'
+modified: '2024-01-15'
 tags:
 - existing-tag
 - new-tag
@@ -178,7 +240,7 @@ title: My Important Note
 
 # Content
 
-This has a #new-tag in it.
+This has a  in it.
 ```
 
 ### Supported Tag Formats
@@ -217,11 +279,17 @@ The tool follows intelligent merge rules when processing frontmatter:
 
 #### Creation Date Handling
 - **Non-destructive**: Only adds `created` field if it doesn't already exist
-- **Source Priority**: Uses file system creation time when available
+- **Earliest Date**: Uses the earliest date found between body content and file metadata
+- **Body Date Extraction**: Recognizes various date formats in the first 10 lines of content
+- **Format**: ISO date format (YYYY-MM-DD) enclosed in quotes
+
+#### Modification Date Handling
+- **Always Updated**: `modified` field is always updated with current file modification time
+- **Source**: Uses file system modification time
 - **Format**: ISO date format (YYYY-MM-DD) enclosed in quotes
 
 #### Frontmatter Structure
-- **Field Ordering**: Fields are sorted alphabetically for consistency
+- **Field Ordering**: Properties are ordered as: `created`, `modified`, `meeting-transcript`, `tags`, then other existing fields
 - **Existing Fields**: All existing frontmatter fields are preserved
 - **YAML Compliance**: Ensures valid YAML syntax throughout
 
@@ -238,8 +306,8 @@ The tool follows intelligent merge rules when processing frontmatter:
 ### Setup Development Environment
 
 ```bash
-git clone https://github.com/yourusername/obsidian-formatter.git
-cd obsidian-formatter
+git clone https://github.com/yourusername/obsistant.git
+cd obsistant
 uv sync --dev
 ```
 
@@ -252,7 +320,7 @@ uv run pytest
 ### Running Tests with Coverage
 
 ```bash
-uv run pytest --cov=obsidian_formatter
+uv run pytest --cov=obsistant
 ```
 
 ### Code Style
@@ -260,14 +328,14 @@ uv run pytest --cov=obsidian_formatter
 The project uses standard Python formatting. You can format code using:
 
 ```bash
-uv run black obsidian_formatter/
+uv run black obsistant/
 ```
 
 ## Project Structure
 
 ```
-obsidian-formatter/
-├── obsidian_formatter/
+obsistant/
+├── obsistant/
 │   ├── __init__.py
 │   ├── cli.py          # Command line interface
 │   └── processor.py    # Core processing logic
@@ -288,15 +356,15 @@ obsidian-formatter/
 
 ## Contributing
 
-We welcome contributions to obsidian-formatter! Here's how to get started:
+We welcome contributions to obsistant! Here's how to get started:
 
 ### Quick Start
 
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/yourusername/obsidian-formatter.git
-   cd obsidian-formatter
+   git clone https://github.com/yourusername/obsistant.git
+   cd obsistant
    ```
 3. **Set up development environment**:
    ```bash
@@ -378,16 +446,16 @@ uv sync --dev
 uv run pytest
 
 # Run tests with coverage
-uv run pytest --cov=obsidian_formatter
+uv run pytest --cov=obsistant
 
 # Format code
-uv run black obsidian_formatter/
+uv run black obsistant/
 
 # Check code style
-uv run black --check obsidian_formatter/
+uv run black --check obsistant/
 
 # Run linting (if configured)
-uv run ruff check obsidian_formatter/
+uv run ruff check obsistant/
 ```
 
 ### Commit Message Guidelines
@@ -411,7 +479,7 @@ docs: update installation instructions
 
 ### Getting Help
 
-- Check existing [Issues](https://github.com/yourusername/obsidian-formatter/issues) and [Pull Requests](https://github.com/yourusername/obsidian-formatter/pulls)
+- Check existing [Issues](https://github.com/yourusername/obsistant/issues) and [Pull Requests](https://github.com/yourusername/obsistant/pulls)
 - Ask questions in GitHub Discussions (if enabled)
 - Read the existing code and tests for examples
 - Join the community chat (if available)
@@ -432,7 +500,7 @@ See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
 
 If you encounter any issues or have questions:
 
-1. Check the [Issues](https://github.com/yourusername/obsidian-formatter/issues) page
+1. Check the [Issues](https://github.com/yourusername/obsistant/issues) page
 2. Create a new issue if your problem isn't already listed
 3. Provide detailed information about your setup and the issue
 
