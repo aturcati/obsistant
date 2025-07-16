@@ -5,6 +5,12 @@ from datetime import datetime
 from pathlib import Path
 
 from obsistant.processor import (
+    _find_target_folder_for_tags,
+    _generate_meeting_filename,
+    _move_file_to_folder,
+    clear_backups,
+    create_backup_path,
+    create_vault_backup,
     extract_date_from_body,
     extract_granola_link,
     extract_tags,
@@ -12,8 +18,12 @@ from obsistant.processor import (
     get_file_creation_date,
     merge_frontmatter,
     parse_date_string,
+    process_file,
+    process_vault,
     render_frontmatter,
+    restore_files,
     split_frontmatter,
+    walk_markdown_files,
 )
 
 
@@ -790,3 +800,336 @@ class TestMergeFrontmatterWithFixtures:
         assert any("real-tag1" in tag for tag in tag_strings)
         assert any("real-tag2" in tag for tag in tag_strings)
         assert any("final-tag" in tag for tag in tag_strings)
+
+
+class TestBackupAndRestore:
+    """Test backup and restore functionality."""
+
+    def test_create_vault_backup(self, tmp_path: Path) -> None:
+        """Test creating a complete vault backup."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        # Create some test files
+        (vault_root / "note1.md").write_text("# Note 1")
+        (vault_root / "note2.md").write_text("# Note 2")
+        subfolder = vault_root / "subfolder"
+        subfolder.mkdir()
+        (subfolder / "note3.md").write_text("# Note 3")
+
+        # Create backup
+        backup_path = create_vault_backup(vault_root)
+
+        # Check that backup exists and contains all files
+        assert backup_path.exists()
+        assert (backup_path / "note1.md").exists()
+        assert (backup_path / "note2.md").exists()
+        assert (backup_path / "subfolder" / "note3.md").exists()
+
+        # Check content is preserved
+        assert (backup_path / "note1.md").read_text() == "# Note 1"
+        assert (backup_path / "subfolder" / "note3.md").read_text() == "# Note 3"
+
+    def test_create_vault_backup_with_custom_name(self, tmp_path: Path) -> None:
+        """Test creating a vault backup with custom name."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+        (vault_root / "note.md").write_text("# Note")
+
+        backup_path = create_vault_backup(vault_root, "custom_backup")
+
+        assert backup_path.name == "custom_backup"
+        assert (backup_path / "note.md").exists()
+
+    def test_clear_backups(self, tmp_path: Path) -> None:
+        """Test clearing backup files."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        # Create backup structure
+        backup_root = vault_root.parent / f"{vault_root.name}_backups"
+        backup_root.mkdir()
+        (backup_root / "note1.md.bak").write_text("backup content")
+        (backup_root / "note2.md.bak").write_text("backup content")
+
+        deleted_count = clear_backups(vault_root)
+
+        assert deleted_count == 2
+        assert not backup_root.exists()
+
+    def test_restore_files(self, tmp_path: Path) -> None:
+        """Test restoring files from backup."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        # Create original file
+        original_file = vault_root / "note.md"
+        original_file.write_text("original content")
+
+        # Create backup
+        backup_root = vault_root.parent / f"{vault_root.name}_backups"
+        backup_root.mkdir()
+        (backup_root / "note.md.bak").write_text("backup content")
+
+        # Corrupt original file
+        original_file.write_text("corrupted content")
+
+        # Restore from backup
+        restored_count = restore_files(vault_root)
+
+        assert restored_count == 1
+        assert original_file.read_text() == "backup content"
+
+    def test_create_backup_path(self, tmp_path: Path) -> None:
+        """Test creating backup path structure."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        file_path = vault_root / "subfolder" / "note.md"
+        file_path.parent.mkdir()
+        file_path.write_text("content")
+
+        backup_path = create_backup_path(vault_root, file_path, ".bak")
+
+        expected_path = (
+            vault_root.parent
+            / f"{vault_root.name}_backups"
+            / "subfolder"
+            / "note.md.bak"
+        )
+        assert backup_path == expected_path
+
+
+class TestHelperFunctions:
+    """Test helper functions."""
+
+    def test_find_target_folder_for_tags(self) -> None:
+        """Test finding target folder for tags."""
+        # Test direct tag match
+        assert _find_target_folder_for_tags(["products"]) == "products"
+        assert _find_target_folder_for_tags(["projects"]) == "projects"
+
+        # Test subtag match
+        assert _find_target_folder_for_tags(["products/mobile"]) == "products/mobile"
+        assert _find_target_folder_for_tags(["challenges/reach"]) == "challenges/reach"
+
+        # Test olt/ prefixed tags
+        assert _find_target_folder_for_tags(["olt/products"]) == "products"
+        assert (
+            _find_target_folder_for_tags(["olt/challenges/reach"]) == "challenges/reach"
+        )
+
+        # Test no match
+        assert _find_target_folder_for_tags(["random"]) is None
+        assert _find_target_folder_for_tags(["olt/random"]) is None
+
+        # Test first match wins
+        assert _find_target_folder_for_tags(["products", "projects"]) == "products"
+
+    def test_move_file_to_folder(self, tmp_path: Path) -> None:
+        """Test moving file to folder with backup."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        # Create source file
+        source_file = vault_root / "source.md"
+        source_file.write_text("content")
+
+        # Create target directory
+        target_dir = vault_root / "target"
+        target_dir.mkdir()
+
+        # Mock logger
+        class MockLogger:
+            def info(self, msg: str) -> None:
+                pass
+
+            def warning(self, msg: str) -> None:
+                pass
+
+        logger = MockLogger()
+
+        # Move file
+        result = _move_file_to_folder(
+            source_file,
+            target_dir,
+            vault_root,
+            ".bak",
+            False,
+            logger,
+            "content",
+            "target",
+        )
+
+        assert result is True
+        assert (target_dir / "source.md").exists()
+        assert not source_file.exists()
+
+        # Check backup was created
+        backup_path = vault_root.parent / f"{vault_root.name}_backups" / "source.md.bak"
+        assert backup_path.exists()
+        assert backup_path.read_text() == "content"
+
+    def test_generate_meeting_filename(self, tmp_path: Path) -> None:
+        """Test generating meeting filename."""
+        # Create test file
+        test_file = tmp_path / "test_meeting.md"
+        test_file.write_text("content")
+
+        # Test with frontmatter date
+        frontmatter = {"created": "2024-01-15"}
+        result = _generate_meeting_filename(test_file, frontmatter)
+        assert result == "240115_test_meeting.md"
+
+        # Test with no frontmatter (uses file creation date)
+        result = _generate_meeting_filename(test_file, {})
+        assert result is not None
+        assert result.endswith("_test_meeting.md")
+        assert len(result.split("_")[0]) == 6  # YYMMDD format
+
+    def test_walk_markdown_files(self, tmp_path: Path) -> None:
+        """Test walking markdown files."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        # Create test files
+        (vault_root / "note1.md").write_text("content")
+        (vault_root / "note2.txt").write_text("content")  # Non-markdown
+        subfolder = vault_root / "subfolder"
+        subfolder.mkdir()
+        (subfolder / "note3.md").write_text("content")
+
+        # Walk markdown files
+        md_files = list(walk_markdown_files(vault_root))
+
+        assert len(md_files) == 2
+        assert vault_root / "note1.md" in md_files
+        assert subfolder / "note3.md" in md_files
+        assert vault_root / "note2.txt" not in md_files
+
+
+class TestProcessFile:
+    """Test process_file function."""
+
+    def test_process_file_with_tags(self, tmp_path: Path) -> None:
+        """Test processing file with tags."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        # Create test file with tags
+        test_file = vault_root / "test.md"
+        test_file.write_text("# Test\n\nThis has #tag1 and #tag2")
+
+        # Mock logger
+        class MockLogger:
+            def info(self, msg: str) -> None:
+                pass
+
+            def error(self, msg: str) -> None:
+                pass
+
+        logger = MockLogger()
+
+        # Process file
+        stats = process_file(test_file, vault_root, False, ".bak", logger)
+
+        assert stats["processed"] is True
+        assert stats["added_tags"] == 2
+        assert stats["removed_tags"] == 0
+
+        # Check file was updated
+        content = test_file.read_text()
+        assert "---" in content  # Frontmatter added
+        assert "tags:" in content
+        assert "tag1" in content
+        assert "tag2" in content
+        assert "This has  and " in content  # Tags removed from body
+
+    def test_process_file_dry_run(self, tmp_path: Path) -> None:
+        """Test processing file in dry run mode."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        test_file = vault_root / "test.md"
+        original_content = "# Test\n\nThis has #tag1"
+        test_file.write_text(original_content)
+
+        class MockLogger:
+            def info(self, msg: str) -> None:
+                pass
+
+            def error(self, msg: str) -> None:
+                pass
+
+        logger = MockLogger()
+
+        # Process file in dry run
+        stats = process_file(test_file, vault_root, True, ".bak", logger)
+
+        assert stats["processed"] is False  # No actual processing in dry run
+        assert test_file.read_text() == original_content  # File unchanged
+
+
+class TestProcessVault:
+    """Test process_vault function."""
+
+    def test_process_vault_all_files(self, tmp_path: Path) -> None:
+        """Test processing entire vault."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        # Create test files
+        (vault_root / "note1.md").write_text("# Note 1\n\n#tag1")
+        (vault_root / "note2.md").write_text("# Note 2\n\n#tag2")
+        subfolder = vault_root / "subfolder"
+        subfolder.mkdir()
+        (subfolder / "note3.md").write_text("# Note 3\n\n#tag3")
+
+        class MockLogger:
+            def info(self, msg: str) -> None:
+                pass
+
+            def error(self, msg: str) -> None:
+                pass
+
+        logger = MockLogger()
+
+        # Process vault
+        process_vault(str(vault_root), False, ".bak", logger)
+
+        # Check all files were processed
+        for file_path in [
+            vault_root / "note1.md",
+            vault_root / "note2.md",
+            subfolder / "note3.md",
+        ]:
+            content = file_path.read_text()
+            assert "---" in content  # Frontmatter added
+            assert "tags:" in content
+
+    def test_process_vault_specific_file(self, tmp_path: Path) -> None:
+        """Test processing specific file in vault."""
+        vault_root = tmp_path / "vault"
+        vault_root.mkdir()
+
+        # Create test files
+        file1 = vault_root / "note1.md"
+        file2 = vault_root / "note2.md"
+        file1.write_text("# Note 1\n\n#tag1")
+        file2.write_text("# Note 2\n\n#tag2")
+
+        class MockLogger:
+            def info(self, msg: str) -> None:
+                pass
+
+            def error(self, msg: str) -> None:
+                pass
+
+        logger = MockLogger()
+
+        # Process only specific file
+        process_vault(str(vault_root), False, ".bak", logger, specific_file=file1)
+
+        # Check only file1 was processed
+        assert "tags:" in file1.read_text()
+        assert "tags:" not in file2.read_text()

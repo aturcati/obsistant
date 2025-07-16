@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -16,7 +17,35 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import Any
 
+# Constants
 TAG_REGEX = r"(?<!\w)#([\w/-]+)(?=\s|$)"
+GRANOLA_LINK_PATTERN = r"Chat with meeting transcript:\s*\[([^\]]+)\]\([^\)]+\)"
+TARGET_TAGS = ["products", "projects", "devops", "challenges", "events"]
+
+# Date formats to try when parsing date strings
+DATE_FORMATS = [
+    "%Y-%m-%d",  # 2024-01-15
+    "%Y/%m/%d",  # 2024/01/15
+    "%m/%d/%Y",  # 01/15/2024
+    "%m-%d-%Y",  # 01-15-2024
+    "%d/%m/%Y",  # 15/01/2024
+    "%d.%m.%Y",  # 15.01.2024
+    "%B %d, %Y",  # January 15, 2024
+    "%B %d %Y",  # January 15 2024
+    "%b %d, %Y",  # Jan 15, 2024
+    "%b %d %Y",  # Jan 15 2024
+    "%b. %d, %Y",  # Jan. 15, 2024
+    "%b. %d %Y",  # Jan. 15 2024
+]
+
+# Date patterns to look for in body content
+DATE_PATTERNS = [
+    r"(\d{4}[-/]\d{1,2}[-/]\d{1,2})",  # ISO format: 2024-01-15, 2024/01/15
+    r"(\d{1,2}[-/]\d{1,2}[-/]\d{4})",  # US format: 01/15/2024, 1/15/2024
+    r"(\d{1,2}[./]\d{1,2}[./]\d{4})",  # European format: 15/01/2024, 15.01.2024
+    r"(\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})",  # Long format: January 15, 2024
+    r"(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2},?\s+\d{4})",  # Short format: Jan 15, 2024
+]
 
 
 def walk_markdown_files(root: Path) -> Iterator[Path]:
@@ -71,8 +100,9 @@ def extract_tags(body: str) -> tuple[set[str], str]:
     clean_body = re.sub(r"^\s*$", "", clean_body, flags=re.MULTILINE)
     # Collapse multiple consecutive empty lines into at most two (preserving paragraph breaks)
     clean_body = re.sub(r"\n{3,}", "\n\n", clean_body)
-    # Clean up any trailing/leading whitespace
-    return tags, clean_body.strip()
+    # Only strip leading whitespace, preserve trailing whitespace as it indicates where tags were removed
+    clean_body = clean_body.lstrip()
+    return tags, clean_body
 
 
 def _is_tag_in_valid_context(body: str, start: int, end: int) -> bool:
@@ -194,15 +224,12 @@ def _is_in_quoted_string(body: str, start: int, end: int) -> bool:
 
 def extract_granola_link(body: str) -> tuple[str | None, str]:
     """Extract meeting transcript URL from 'Chat with meeting transcript:' text and remove it."""
-    # Pattern to match "Chat with meeting transcript:" followed by a markdown link
-    # Example: "Chat with meeting transcript: [https://notes.granola.ai/d/...](https://notes.granola.ai/d/...)"
-    pattern = r"Chat with meeting transcript:\s*\[([^\]]+)\]\([^\)]+\)"
-    match = re.search(pattern, body, re.IGNORECASE)
+    match = re.search(GRANOLA_LINK_PATTERN, body, re.IGNORECASE)
 
     if match:
         url = match.group(1)  # Extract the URL from the markdown link
         # Remove the entire "Chat with meeting transcript: [URL](URL)" text
-        clean_body = re.sub(pattern, "", body, flags=re.IGNORECASE)
+        clean_body = re.sub(GRANOLA_LINK_PATTERN, "", body, flags=re.IGNORECASE)
         # Clean up any extra whitespace and empty lines
         clean_body = re.sub(r"\n\s*\n\s*\n", "\n\n", clean_body)
         clean_body = re.sub(r"^\s*$", "", clean_body, flags=re.MULTILINE)
@@ -223,19 +250,8 @@ def extract_date_from_body(body: str) -> str | None:
     # Split body into lines and check only the first 10 lines
     lines = body.strip().split("\n")[:10]
 
-    # Common date patterns to look for
-    date_patterns = [
-        # ISO format: 2024-01-15, 2024/01/15
-        r"(\d{4}[-/]\d{1,2}[-/]\d{1,2})",
-        # US format: 01/15/2024, 1/15/2024
-        r"(\d{1,2}[-/]\d{1,2}[-/]\d{4})",
-        # European format: 15/01/2024, 15.01.2024
-        r"(\d{1,2}[./]\d{1,2}[./]\d{4})",
-        # Long format: January 15, 2024
-        r"(\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})",
-        # Short format: Jan 15, 2024
-        r"(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2},?\s+\d{4})",
-    ]
+    # Use the predefined date patterns
+    date_patterns = DATE_PATTERNS
 
     for line in lines:
         # Skip empty lines and lines that are just headers
@@ -260,21 +276,8 @@ def extract_date_from_body(body: str) -> str | None:
 
 def parse_date_string(date_str: str) -> datetime | None:
     """Parse various date string formats into a datetime object."""
-    # Common date formats to try
-    date_formats = [
-        "%Y-%m-%d",  # 2024-01-15
-        "%Y/%m/%d",  # 2024/01/15
-        "%m/%d/%Y",  # 01/15/2024
-        "%m-%d-%Y",  # 01-15-2024
-        "%d/%m/%Y",  # 15/01/2024
-        "%d.%m.%Y",  # 15.01.2024
-        "%B %d, %Y",  # January 15, 2024
-        "%B %d %Y",  # January 15 2024
-        "%b %d, %Y",  # Jan 15, 2024
-        "%b %d %Y",  # Jan 15 2024
-        "%b. %d, %Y",  # Jan. 15, 2024
-        "%b. %d %Y",  # Jan. 15 2024
-    ]
+    # Use the predefined date formats
+    date_formats = DATE_FORMATS
 
     for fmt in date_formats:
         try:
@@ -496,6 +499,32 @@ def restore_files(vault_root: Path, specific_file: Path | None = None) -> int:
     return restored_count
 
 
+def create_vault_backup(vault_root: Path, backup_name: str | None = None) -> Path:
+    """Create a complete backup of the vault.
+    Args:
+        vault_root: Path to the vault directory
+        backup_name: Optional custom name for the backup. If None, uses timestamp.
+    Returns:
+        Path to the created backup directory
+    """
+    if backup_name is None:
+        # Use timestamp for backup name
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"{vault_root.name}_{timestamp}"
+
+    # Create backup directory in the same parent directory as the vault
+    backup_dir = vault_root.parent / backup_name
+
+    # Remove existing backup if it exists
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+
+    # Create the backup by copying the entire vault
+    shutil.copytree(vault_root, backup_dir)
+
+    return backup_dir
+
+
 def process_file(
     path: Path,
     vault_root: Path,
@@ -562,7 +591,6 @@ def process_file(
 
     # Only write if content has changed
     if new_text != text:
-        stats["processed"] = True
         stats["added_tags"] = len(added_tags)
         stats["removed_tags"] = len(removed_tags)
 
@@ -571,6 +599,7 @@ def process_file(
             log_change(path, added_tags, removed_tags, dry_run)
 
         if not dry_run:
+            stats["processed"] = True
             try:
                 backup_path = create_backup_path(vault_root, path, backup_ext)
                 # Create backup directory if it doesn't exist
@@ -644,31 +673,537 @@ def process_file(
     return stats
 
 
+def _find_target_folder_for_tags(tags: list[str]) -> str | None:
+    """Find the appropriate target folder for a list of tags.
+    Args:
+        tags: List of tag strings from frontmatter
+    Returns:
+        Target folder name or None if no match found
+    """
+    for tag in tags:
+        tag_lower = tag.lower()
+        # Check if this tag matches any of our target tags or is a subtag
+        for target_tag in TARGET_TAGS:
+            # Handle direct matches or subtags
+            if tag_lower == target_tag or tag_lower.startswith(f"{target_tag}/"):
+                # For subtags, create the full folder path
+                if tag_lower.startswith(f"{target_tag}/"):
+                    # Extract the subtag part and create folder structure
+                    subtag_part = tag_lower[
+                        len(target_tag) + 1 :
+                    ]  # Remove "target_tag/" prefix
+                    return f"{target_tag}/{subtag_part}"
+                else:
+                    return target_tag
+            # Handle olt/ prefixed tags like "olt/challenges/reach"
+            elif (
+                tag_lower.startswith(f"olt/{target_tag}/")
+                or tag_lower == f"olt/{target_tag}"
+            ):
+                if tag_lower.startswith(f"olt/{target_tag}/"):
+                    # Extract the subtag part and create folder structure
+                    subtag_part = tag_lower[
+                        len(f"olt/{target_tag}") + 1 :
+                    ]  # Remove "olt/target_tag/" prefix
+                    return f"{target_tag}/{subtag_part}"
+                else:
+                    return target_tag
+    return None
+
+
+def _move_file_to_folder(
+    file_path: Path,
+    target_dir: Path,
+    vault_root: Path,
+    backup_ext: str,
+    dry_run: bool,
+    logger: Any,
+    file_content: str,
+    target_folder: str,
+    destination_name: str = "",
+) -> bool:
+    """Move a file to a target directory with backup.
+    Args:
+        file_path: Source file path
+        target_dir: Target directory path
+        vault_root: Vault root path for relative path calculations
+        backup_ext: Backup file extension
+        dry_run: Whether this is a dry run
+        logger: Logger instance
+        file_content: Content of the file for backup
+        target_folder: Name of target folder for logging
+        destination_name: Optional custom destination name for logging
+    Returns:
+        True if file was moved, False otherwise
+    """
+    target_path = target_dir / file_path.name
+
+    # Skip if file is already in the correct location
+    if file_path.resolve() == target_path.resolve():
+        logger.info(
+            f"File {file_path.name} already in correct location ({target_folder})"
+        )
+        return False
+
+    # Create the directory if it doesn't exist
+    if not target_dir.exists():
+        if not dry_run:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Created folder: {target_dir.relative_to(vault_root)}")
+        else:
+            logger.info(
+                f"[DRY RUN] Would create folder: {target_dir.relative_to(vault_root)}"
+            )
+
+    # Check if target file already exists (different from source)
+    if target_path.exists():
+        logger.warning(
+            f"Target file {target_path.relative_to(vault_root)} already exists, skipping move"
+        )
+        return False
+
+    # Move the file
+    if not dry_run:
+        # Create backup before moving
+        backup_path = create_backup_path(vault_root, file_path, backup_ext)
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_text(file_content, encoding="utf-8")
+
+        # Move the file
+        file_path.rename(target_path)
+        dest_display = destination_name or f"{target_folder}/{file_path.name}"
+        logger.info(f"Moved {file_path.name} -> {dest_display}")
+    else:
+        dest_display = destination_name or f"{target_folder}/{file_path.name}"
+        logger.info(f"[DRY RUN] Would move {file_path.name} -> {dest_display}")
+
+    return True
+
+
+def process_notes_folder(
+    vault_root: Path,
+    notes_folder: str,
+    dry_run: bool,
+    backup_ext: str,
+    logger: Any,
+) -> None:
+    """Process all files in the Notes folder to organize them by tags into subfolders.
+    Recursively traverses the entire notes directory tree and moves files to appropriate
+    locations based on their tags. Creates subfolders for each relevant tag.
+    Only handles specific tags: products, projects, devops, challenges, events (and their subtags).
+    Ignores 'olt' tag. Files with multiple relevant tags are moved to the first matching tag folder.
+    Files without matching tags are moved to a 'various' folder.
+    Subtags create nested folder structures (e.g., 'olt/challenges/reach' creates 'challenges/reach/').
+    """
+    notes_path = vault_root / notes_folder
+
+    if not notes_path.exists() or not notes_path.is_dir():
+        logger.error(f"Notes folder '{notes_folder}' not found in vault")
+        return
+
+    total_processed = 0
+    total_moved = 0
+    folders_created = set()
+
+    # Recursively find all markdown files in the notes directory tree
+    for markdown_file in notes_path.rglob("*.md"):
+        try:
+            # Read the file content
+            with markdown_file.open("r", encoding="utf-8") as file:
+                text = file.read()
+
+            frontmatter, body = split_frontmatter(text)
+
+            # Extract tags from frontmatter
+            tags = frontmatter.get("tags", []) if frontmatter else []
+            if not isinstance(tags, list):
+                tags = []
+
+            # Find the first matching target tag (including subtags)
+            target_folder = _find_target_folder_for_tags(tags)
+
+            # If we found a matching tag, move the file to that folder
+            # Otherwise, move to "various" folder
+            if not target_folder:
+                target_folder = "various"
+                logger.info(
+                    f"Moving {markdown_file.name} to various folder (tags: {tags})"
+                )
+
+            # Create the target directory path
+            target_dir = notes_path / target_folder
+
+            # Move the file
+            if _move_file_to_folder(
+                markdown_file,
+                target_dir,
+                vault_root,
+                backup_ext,
+                dry_run,
+                logger,
+                text,
+                target_folder,
+            ):
+                total_moved += 1
+                folders_created.add(target_folder)
+
+            total_processed += 1
+
+        except (OSError, UnicodeDecodeError) as e:
+            logger.error(f"Error processing {markdown_file}: {e}")
+            continue
+
+    # Print summary
+    console.print("[bold green]Notes Folder Processing Summary[/]")
+    console.print(f"Total files processed: [bold]{total_processed}[/]")
+    console.print(f"Files moved: [bold]{total_moved}[/]")
+    console.print(f"Folders created: [bold]{len(folders_created)}[/]")
+    if folders_created:
+        console.print(f"Created folders: [bold]{', '.join(sorted(folders_created))}[/]")
+
+
+def process_meetings_folder(
+    vault_root: Path,
+    meetings_folder: str,
+    dry_run: bool,
+    backup_ext: str,
+    logger: Any,
+) -> None:
+    """Process all files in the Meetings folder to rename them and ensure they have the 'meeting' tag.
+    Renames files using the template: YYMMDD_Title
+    where YYMMDD comes from frontmatter 'created' field or file creation date.
+    Also ensures all files have the 'meeting' tag.
+    """
+    meetings_path = vault_root / meetings_folder
+
+    if not meetings_path.exists() or not meetings_path.is_dir():
+        logger.error(f"Meetings folder '{meetings_folder}' not found in vault")
+        return
+
+    total_processed = 0
+    total_renamed = 0
+    total_meeting_tags_added = 0
+
+    for markdown_file in meetings_path.glob("*.md"):
+        try:
+            # Read the file content
+            with markdown_file.open("r", encoding="utf-8") as file:
+                text = file.read()
+
+            frontmatter, body = split_frontmatter(text)
+
+            # Extract existing tags from frontmatter
+            existing_tags = set(frontmatter.get("tags", [])) if frontmatter else set()
+
+            # Check if we need to add the 'meeting' tag
+            needs_meeting_tag = "meeting" not in existing_tags
+            if needs_meeting_tag:
+                existing_tags.add("meeting")
+                total_meeting_tags_added += 1
+
+            # Update frontmatter with meeting tag if needed
+            if needs_meeting_tag:
+                if frontmatter is None:
+                    frontmatter = {}
+                frontmatter["tags"] = sorted(existing_tags)
+
+                # Write the updated content back
+                new_text = render_frontmatter(frontmatter) + body
+
+                if not dry_run:
+                    # Create backup
+                    backup_path = create_backup_path(
+                        vault_root, markdown_file, backup_ext
+                    )
+                    backup_path.parent.mkdir(parents=True, exist_ok=True)
+                    backup_path.write_text(text, encoding="utf-8")
+
+                    # Write updated content
+                    markdown_file.write_text(new_text, encoding="utf-8")
+                    logger.info(f"Added 'meeting' tag to {markdown_file.name}")
+                else:
+                    logger.info(
+                        f"[DRY RUN] Would add 'meeting' tag to {markdown_file.name}"
+                    )
+
+            # Generate new filename based on template
+            new_filename = _generate_meeting_filename(markdown_file, frontmatter or {})
+
+            if new_filename and new_filename != markdown_file.name:
+                new_path = markdown_file.parent / new_filename
+
+                # Check if target file already exists
+                if new_path.exists():
+                    logger.warning(
+                        f"Target file {new_filename} already exists, skipping rename"
+                    )
+                else:
+                    if not dry_run:
+                        markdown_file.rename(new_path)
+                        logger.info(f"Renamed {markdown_file.name} -> {new_filename}")
+                    else:
+                        logger.info(
+                            f"[DRY RUN] Would rename {markdown_file.name} -> {new_filename}"
+                        )
+                    total_renamed += 1
+
+            total_processed += 1
+
+        except (OSError, UnicodeDecodeError) as e:
+            logger.error(f"Error processing {markdown_file}: {e}")
+            continue
+
+    # Print summary
+    console.print("[bold green]Meetings Folder Processing Summary[/]")
+    console.print(f"Total files processed: [bold]{total_processed}[/]")
+    console.print(f"Files renamed: [bold]{total_renamed}[/]")
+    console.print(f"'meeting' tags added: [bold]{total_meeting_tags_added}[/]")
+
+
+def _generate_meeting_filename(
+    file_path: Path, frontmatter: dict[str, Any]
+) -> str | None:
+    """Generate a new filename for a meeting file based on the template YYMMDD_Title.
+    Args:
+        file_path: Path to the original file
+        frontmatter: Frontmatter dictionary containing tags and other metadata
+    Returns:
+        New filename string or None if generation fails
+    """
+    try:
+        # Extract date - try from frontmatter first, then file creation date
+        date_str = None
+        if "created" in frontmatter:
+            date_str = frontmatter["created"]
+        else:
+            # Fallback to file creation date
+            date_str = get_file_creation_date(file_path)
+
+        if not date_str:
+            return None
+
+        # Parse date and format as YYMMDD
+        try:
+            if isinstance(date_str, str):
+                date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+            else:
+                date_obj = date_str
+            date_prefix = date_obj.strftime("%y%m%d")
+        except (ValueError, AttributeError):
+            return None
+
+        # Extract title from filename (remove .md extension)
+        title = file_path.stem
+
+        # Remove any existing date prefix pattern from title
+        # Pattern: YYMMDD_ at the beginning
+        title = re.sub(r"^\d{6}_", "", title)
+
+        # Clean up title - remove any leading/trailing underscores or hyphens
+        title = title.strip("_-")
+
+        # Build new filename with just date and title
+        new_filename = f"{date_prefix}_{title}.md"
+
+        # Clean up any double underscores or other artifacts
+        new_filename = re.sub(r"_{2,}", "_", new_filename)
+
+        return new_filename
+
+    except Exception:
+        return None
+
+
+def process_quick_notes_folder(
+    vault_root: Path,
+    notes_folder: str,
+    quick_notes_folder: str,
+    dry_run: bool,
+    backup_ext: str,
+    logger: Any,
+    meetings_folder: str = "Meetings",
+) -> None:
+    """Process all files in the Quick Notes folder to organize them by tags.
+    This modified version processes the quick notes folder, sorts files into
+    appropriate locations, applies meetings formatting to files moved to the
+    meetings folder, and notes formatting to those moved to the notes folder.
+    Moves files from the Quick Notes folder to the appropriate destinations:
+    - Files with 'meeting' tag -> meetings folder
+    - Other files -> appropriate subfolders in the Notes folder based on their tags
+    Args:
+        vault_root: Path to the vault root directory
+        notes_folder: Name of the notes folder (e.g., '20-Notes')
+        quick_notes_folder: Name of the quick notes folder (e.g., '00-Quick Notes')
+        dry_run: If True, only show what would be done without making changes
+        backup_ext: Extension to use for backup files
+        logger: Logger instance for output
+        meetings_folder: Name of the meetings folder (e.g., 'Meetings')
+    """
+    quick_notes_path = vault_root / quick_notes_folder
+    notes_path = vault_root / notes_folder
+
+    if not quick_notes_path.exists() or not quick_notes_path.is_dir():
+        logger.error(f"Quick notes folder '{quick_notes_folder}' not found in vault")
+        return
+
+    if not notes_path.exists() or not notes_path.is_dir():
+        logger.error(f"Notes folder '{notes_folder}' not found in vault")
+        return
+
+    # First process the entire quick notes folder
+    process_vault(
+        root=str(quick_notes_path),
+        dry_run=dry_run,
+        backup_ext=backup_ext,
+        logger=logger,
+    )
+
+    total_processed = 0
+    total_moved = 0
+    folders_created = set()
+
+    # Recursively find all markdown files in the quick notes directory tree
+    for markdown_file in quick_notes_path.rglob("*.md"):
+        try:
+            # Read the file content
+            with markdown_file.open("r", encoding="utf-8") as file:
+                text = file.read()
+
+            frontmatter, body = split_frontmatter(text)
+
+            # Extract tags from frontmatter
+            tags = frontmatter.get("tags", []) if frontmatter else []
+            if not isinstance(tags, list):
+                tags = []
+
+            # Check if file has 'meeting' tag - if so, move to meetings folder
+            has_meeting_tag = "meeting" in [tag.lower() for tag in tags]
+
+            if has_meeting_tag:
+                # Move to meetings folder
+                meetings_path = vault_root / meetings_folder
+
+                # Move the file
+                if _move_file_to_folder(
+                    markdown_file,
+                    meetings_path,
+                    vault_root,
+                    backup_ext,
+                    dry_run,
+                    logger,
+                    text,
+                    meetings_folder,
+                    f"{meetings_folder}/{markdown_file.name}",
+                ):
+                    total_moved += 1
+                    folders_created.add(meetings_folder)
+
+                    # Apply meetings formatting after moving
+                    process_meetings_folder(
+                        vault_root=vault_root,
+                        meetings_folder=meetings_folder,
+                        dry_run=dry_run,
+                        backup_ext=backup_ext,
+                        logger=logger,
+                    )
+
+                total_processed += 1
+                continue
+
+            # Find the first matching target tag (including subtags)
+            target_folder = _find_target_folder_for_tags(tags)
+
+            # If we found a matching tag, move the file to that folder in Notes
+            # Otherwise, move to "various" folder in Notes
+            if not target_folder:
+                target_folder = "various"
+                logger.info(
+                    f"Moving {markdown_file.name} to various folder (tags: {tags})"
+                )
+
+            # Create the target directory path in the Notes folder
+            target_dir = notes_path / target_folder
+
+            # Move the file
+            if _move_file_to_folder(
+                markdown_file,
+                target_dir,
+                vault_root,
+                backup_ext,
+                dry_run,
+                logger,
+                text,
+                target_folder,
+                f"{notes_folder}/{target_folder}/{markdown_file.name}",
+            ):
+                total_moved += 1
+                folders_created.add(target_folder)
+
+                # Apply notes formatting after moving
+                process_notes_folder(
+                    vault_root=vault_root,
+                    notes_folder=notes_folder,
+                    dry_run=dry_run,
+                    backup_ext=backup_ext,
+                    logger=logger,
+                )
+
+            total_processed += 1
+
+        except (OSError, UnicodeDecodeError) as e:
+            logger.error(f"Error processing {markdown_file}: {e}")
+            continue
+
+    # Print summary
+    console.print("[bold green]Quick Notes Processing Summary[/]")
+    console.print(f"Total files processed: [bold]{total_processed}[/]")
+    console.print(f"Files moved: [bold]{total_moved}[/]")
+    console.print(f"Folders created: [bold]{len(folders_created)}[/]")
+    if folders_created:
+        console.print(f"Created folders: [bold]{', '.join(sorted(folders_created))}[/]")
+
+
 def process_vault(
     root: str,
     dry_run: bool,
     backup_ext: str,
     logger: Any,
     format_md: bool = False,
+    specific_file: Path | None = None,
 ) -> None:
-    """Orchestrate processing of the entire vault and provide summary statistics."""
+    """Orchestrate processing of the entire vault or a specific file and provide summary statistics."""
     total_added_tags = 0
     total_removed_tags = 0
     total_processed_files = 0
 
     vault_root = Path(root)
 
-    for markdown_file in walk_markdown_files(vault_root):
+    if specific_file:
+        # Process only the specific file
         stats = process_file(
-            markdown_file, vault_root, dry_run, backup_ext, logger, format_md
+            specific_file, vault_root, dry_run, backup_ext, logger, format_md
         )
         total_added_tags += stats["added_tags"]
         total_removed_tags += stats["removed_tags"]
         if stats["processed"]:
             total_processed_files += 1
+    else:
+        # Process all markdown files in the vault
+        for markdown_file in walk_markdown_files(vault_root):
+            stats = process_file(
+                markdown_file, vault_root, dry_run, backup_ext, logger, format_md
+            )
+            total_added_tags += stats["added_tags"]
+            total_removed_tags += stats["removed_tags"]
+            if stats["processed"]:
+                total_processed_files += 1
 
     # Print summary statistics using rich
-    console.print("[bold green]Vault Processing Summary[/]")
+    if specific_file:
+        console.print("[bold green]File Processing Summary[/]")
+        console.print(f"File: [bold]{specific_file.relative_to(vault_root)}[/]")
+    else:
+        console.print("[bold green]Vault Processing Summary[/]")
     console.print(f"Total files processed: [bold]{total_processed_files}[/]")
     console.print(f"Total tags added: [bold]{total_added_tags}[/]")
     console.print(f"Total tags removed: [bold]{total_removed_tags}[/]")

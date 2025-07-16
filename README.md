@@ -1,21 +1,23 @@
 # Obsistant
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/yourusername/obsistant/workflows/Tests/badge.svg)](https://github.com/yourusername/obsistant/actions)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A powerful CLI tool for processing Obsidian vaults to extract inline `#tags` from markdown content and add them to YAML frontmatter, along with automatic creation and modification date insertion and optional markdown formatting.
+A powerful Python CLI tool for automatically organizing and managing Obsidian vaults with intelligent tag extraction, file organization, and frontmatter management.
 
 ## Features
 
-- **Tag Extraction**: Automatically extracts inline `#tags` from markdown content and adds them to YAML frontmatter
-- **Creation Date**: Adds creation dates using the earliest date between body content and file metadata
-- **Modification Date**: Adds file modification dates to frontmatter
-- **Meeting Transcript Links**: Extracts meeting transcript URLs from "Chat with meeting transcript:" text
-- **Markdown Formatting**: Optional standardized markdown formatting using `mdformat`
-- **Safe Processing**: Creates backup files before making any changes
-- **Dry Run Mode**: Preview changes without modifying files
-- **Smart Merging**: Non-destructively merges with existing frontmatter
-- **Flexible Tag Support**: Supports nested tags like `#category/subcategory` and hyphenated tags like `#long-tag-name`
+- **🏷️ Intelligent Tag Extraction**: Automatically extracts hashtags from markdown content and moves them to YAML frontmatter
+- **📁 Smart File Organization**: Organizes notes into structured folders based on tags and content type
+- **📅 Meeting Management**: Automatically formats meeting notes with standardized naming (YYMMDD_Title)
+- **🔄 Quick Notes Processing**: Processes and organizes files from quick notes folder into appropriate locations
+- **💾 Backup & Restore**: Comprehensive backup system with easy restoration capabilities
+- **🚀 Batch Processing**: Process entire vaults or specific files with dry-run support
+- **📊 Rich Reporting**: Detailed summaries and progress tracking with colored output
+- **📝 Frontmatter Management**: Intelligent creation and modification date handling
+- **🔗 Meeting Transcript Links**: Extracts meeting transcript URLs from "Chat with meeting transcript:" text
+- **✨ Markdown Formatting**: Optional standardized markdown formatting using `mdformat`
 
 ## Installation
 
@@ -55,6 +57,30 @@ cd obsistant
 uv sync --dev
 ```
 
+## Vault Structure
+
+Obsistant is designed to work with a structured Obsidian vault. Here's the recommended organization:
+
+```
+Your-Vault/
+├── 00-Quick Notes/          # Temporary notes for quick capture
+├── 10-Meetings/            # Meeting notes with YYMMDD_Title format
+├── 20-Notes/               # Main knowledge base, organized by tags
+│   ├── products/           # Product-related notes
+│   │   ├── product-a/
+│   │   └── product-b/
+│   ├── projects/           # Project documentation
+│   │   ├── project-x/
+│   │   └── project-y/
+│   ├── devops/            # DevOps and infrastructure notes
+│   │   └── tools/
+│   ├── events/           # Event notes and conferences
+│   └── various/          # Miscellaneous notes
+├── 30-Guides/            # Documentation and guides
+├── 40-Vacations/         # Personal time tracking
+└── 50-Files/             # Attachments and resources
+```
+
 ## Usage
 
 ### Basic Usage
@@ -73,6 +99,10 @@ obsistant [OPTIONS] COMMAND [ARGS]...
 
 **Commands:**
 - `process`: Process Obsidian vault to extract tags and add metadata (default)
+- `meetings`: Organize meeting notes with standardized naming
+- `notes`: Organize main notes by tags into subfolders
+- `quick-notes`: Process quick notes and move to appropriate locations
+- `backup`: Create vault backups
 - `clear-backups`: Clear all backup files for the specified vault
 - `restore`: Restore corrupted files from backups
 
@@ -113,6 +143,45 @@ Restore corrupted files from backups.
 
 **Options:**
 - `--file FILE`: Restore a specific file instead of all files
+- `-v, --verbose`: Enable verbose output
+
+### Specialized Commands
+
+#### Organize Meeting Notes
+```bash
+obsistant meetings [OPTIONS] VAULT_PATH
+```
+- Renames files using YYMMDD_Title format
+- Ensures all files have the 'meeting' tag
+- Extracts dates from frontmatter or file creation date
+
+#### Organize Main Notes by Tags
+```bash
+obsistant notes [OPTIONS] VAULT_PATH
+```
+- Moves files to appropriate subfolders based on tags
+- Supports nested folder structures for subtags
+- Handles these target tags: `products`, `projects`, `devops`, `challenges`, `events`
+
+#### Process Quick Notes
+```bash
+obsistant quick-notes [OPTIONS] VAULT_PATH
+```
+- Processes files from Quick Notes folder
+- Files with `meeting` tag → moved to Meetings folder
+- Other files → moved to appropriate Notes subfolders
+- Applies appropriate formatting based on destination
+
+#### Create Vault Backup
+```bash
+obsistant backup [OPTIONS] VAULT_PATH
+```
+- Creates complete vault backup with timestamp
+- Option to specify custom backup name
+- Removes existing backup if same name exists
+
+**Options:**
+- `--name TEXT`: Custom backup name (default: timestamp)
 - `-v, --verbose`: Enable verbose output
 
 ### Examples
@@ -176,6 +245,129 @@ obsistant process ~/Documents/MyVault --dry-run
 # Process with formatting
 obsistant process ~/Documents/MyVault --format
 ```
+
+#### Specialized Commands Examples
+```bash
+# Process quick notes from daily capture
+obsistant quick-notes ~/Documents/MyVault
+
+# Organize meeting notes
+obsistant meetings ~/Documents/MyVault
+
+# Organize main notes by tags
+obsistant notes ~/Documents/MyVault
+
+# Create backup before major changes
+obsistant backup ~/Documents/MyVault --name "pre-migration"
+```
+
+#### Daily Workflow
+```bash
+# 1. Process quick notes from daily capture
+obsistant quick-notes ~/Documents/MyVault
+
+# 2. Organize meeting notes
+obsistant meetings ~/Documents/MyVault
+
+# 3. Process and organize all notes
+obsistant process ~/Documents/MyVault --dry-run  # Preview first
+obsistant process ~/Documents/MyVault            # Apply changes
+```
+
+#### Migration Workflow
+```bash
+# 1. Create backup before major changes
+obsistant backup ~/Documents/MyVault --name "pre-migration"
+
+# 2. Process vault with dry run
+obsistant process ~/Documents/MyVault --dry-run
+
+# 3. Apply changes
+obsistant process ~/Documents/MyVault
+
+# 4. If issues occur, restore from backup
+obsistant restore ~/Documents/MyVault
+```
+
+## Tag System
+
+Obsistant uses a hierarchical tag system for organization:
+
+### Primary Tags
+- `products` - Product-related documentation
+- `projects` - Project management and documentation
+- `devops` - Infrastructure and deployment notes
+- `challenges` - Technical challenges and solutions
+- `events` - Conferences, meetings, and events
+
+### Tag Hierarchy
+Tags support nested structures using forward slashes:
+- `products/awesome-app` → `20-Notes/products/awesome-app/`
+- `projects/migration/phase1` → `20-Notes/projects/migration/phase1/`
+- `devops/cloud/aws` → `20-Notes/devops/cloud/aws/`
+
+### Special Tags
+- `meeting` - Automatically applied to meeting notes
+- `olt/*` - Company-specific tags (prefix stripped during organization)
+
+## Frontmatter Management
+
+Obsistant automatically manages YAML frontmatter with these properties:
+
+```yaml
+---
+created: '2024-01-15'        # Earliest date found (body content or file creation)
+modified: '2024-01-16'       # File modification date (auto-updated)
+meeting-transcript: 'url'    # Meeting transcript URL (if found)
+tags:                        # Sorted alphabetically
+  - products/awesome-app
+  - devops/deployment
+---
+```
+
+### Property Ordering
+1. `created` - Creation date
+2. `modified` - Last modification date
+3. `meeting-transcript` - Meeting transcript URL (if present)
+4. `tags` - Sorted tag list
+5. Any other existing properties (preserved)
+
+## Meeting Notes
+
+Meeting notes are automatically formatted with:
+- **Filename**: `YYMMDD_Title.md` (e.g., `240115_Project_Kickoff.md`)
+- **Tags**: Automatically includes `meeting` tag
+- **Date Extraction**: From frontmatter `created` field or file creation date
+
+Example meeting note:
+```markdown
+---
+created: '2024-01-15'
+modified: '2024-01-15'
+tags:
+  - meeting
+  - projects/awesome-app
+---
+
+# Project Kickoff Meeting
+
+## Attendees
+- John Doe
+- Jane Smith
+
+## Agenda
+1. Project overview
+2. Timeline discussion
+3. Next steps
+```
+
+## Supported Date Formats
+
+Obsistant automatically detects these date formats:
+- ISO: `2024-01-15`, `2024/01/15`
+- US: `01/15/2024`, `1/15/2024`
+- European: `15/01/2024`, `15.01.2024`
+- Long: `January 15, 2024`, `Jan 15, 2024`
 
 ## How It Works
 
