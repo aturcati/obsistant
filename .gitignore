@@ -128,9 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# UV lock files
-uv.lock
-
 # Backup files
 *.bak
 *.backup
