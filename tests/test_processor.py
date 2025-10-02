@@ -679,30 +679,30 @@ Content here."""
             tags_idx = keys.index("tags")
 
             # Check the order: created < modified < meeting-transcript < tags
-            assert (
-                created_idx < modified_idx
-            ), f"created should come before modified, but got order: {keys}"
-            assert (
-                modified_idx < meeting_transcript_idx
-            ), f"modified should come before meeting-transcript, but got order: {keys}"
-            assert (
-                meeting_transcript_idx < tags_idx
-            ), f"meeting-transcript should come before tags, but got order: {keys}"
+            assert created_idx < modified_idx, (
+                f"created should come before modified, but got order: {keys}"
+            )
+            assert modified_idx < meeting_transcript_idx, (
+                f"modified should come before meeting-transcript, but got order: {keys}"
+            )
+            assert meeting_transcript_idx < tags_idx, (
+                f"meeting-transcript should come before tags, but got order: {keys}"
+            )
 
             # Check that other properties come after our main properties
             title_idx = keys.index("title")
             author_idx = keys.index("author")
             other_field_idx = keys.index("other_field")
 
-            assert (
-                tags_idx < title_idx
-            ), f"tags should come before other properties, but got order: {keys}"
-            assert (
-                tags_idx < author_idx
-            ), f"tags should come before other properties, but got order: {keys}"
-            assert (
-                tags_idx < other_field_idx
-            ), f"tags should come before other properties, but got order: {keys}"
+            assert tags_idx < title_idx, (
+                f"tags should come before other properties, but got order: {keys}"
+            )
+            assert tags_idx < author_idx, (
+                f"tags should come before other properties, but got order: {keys}"
+            )
+            assert tags_idx < other_field_idx, (
+                f"tags should come before other properties, but got order: {keys}"
+            )
 
         finally:
             temp_path.unlink()

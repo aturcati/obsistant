@@ -64,9 +64,9 @@ This should be properly formatted as a table."""
 
         # Assert that we have the expected number of table lines
         # Currently this will fail because all table content is collapsed into one line
-        assert (
-            len(table_lines) >= 4
-        ), f"Expected at least 4 table lines but got {len(table_lines)}: {table_lines}"
+        assert len(table_lines) >= 4, (
+            f"Expected at least 4 table lines but got {len(table_lines)}: {table_lines}"
+        )
 
         # Each row should be on a separate line
         assert "Header 1" in table_lines[0]
