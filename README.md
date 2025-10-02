@@ -372,11 +372,9 @@ Obsistant uses a hierarchical tag system for organization:
 Tags support nested structures using forward slashes:
 - `products/awesome-app` → `20-Notes/products/awesome-app/`
 - `projects/migration/phase1` → `20-Notes/projects/migration/phase1/`
-- `devops/cloud/aws` → `20-Notes/devops/cloud/aws/`
 
 ### Special Tags
 - `meeting` - Automatically applied to meeting notes
-- `olt/*` - Company-specific tags (prefix stripped during organization)
 
 ## Frontmatter Management
 
@@ -566,29 +564,9 @@ The tool follows intelligent merge rules when processing frontmatter:
 ### Setup Development Environment
 
 ```bash
-git clone https://github.com/yourusername/obsistant.git
+git clone https://github.com/aturcati/obsistant.git
 cd obsistant
 uv sync --dev
-```
-
-### Running Tests
-
-```bash
-uv run pytest
-```
-
-### Running Tests with Coverage
-
-```bash
-uv run pytest --cov=obsistant
-```
-
-### Code Style
-
-The project uses standard Python formatting. You can format code using:
-
-```bash
-uv run black obsistant/
 ```
 
 ## Project Structure
@@ -614,156 +592,15 @@ obsistant/
 - Click >= 8.1
 - mdformat >= 0.7.22
 
-## Contributing
-
-We welcome contributions to obsistant! Here's how to get started:
-
-### Quick Start
-
-1. **Fork the repository** on GitHub
-2. **Clone your fork** locally:
-   ```bash
-   git clone https://github.com/yourusername/obsistant.git
-   cd obsistant
-   ```
-3. **Set up development environment**:
-   ```bash
-   uv sync --dev
-   ```
-4. **Create a feature branch**:
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-5. **Make your changes** and add tests if applicable
-6. **Run tests** to ensure everything works:
-   ```bash
-   uv run pytest
-   ```
-7. **Commit your changes**:
-   ```bash
-   git commit -m 'Add some amazing feature'
-   ```
-8. **Push to your fork**:
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-9. **Open a Pull Request** on GitHub
-
-### Development Guidelines
-
-#### Code Style
-- Use [Black](https://black.readthedocs.io/) for code formatting
-- Follow [PEP 8](https://peps.python.org/pep-0008/) conventions
-- Use type hints where appropriate
-- Keep line length to 88 characters (Black default)
-
-#### Testing
-- Write tests for new functionality
-- Ensure all tests pass before submitting
-- Aim for good test coverage
-- Use descriptive test names
-
-#### Documentation
-- Update README.md for user-facing changes
-- Add docstrings to new functions/classes
-- Update CLI help text if adding new options
-- Consider adding usage examples
-
-#### Pull Request Guidelines
-- **Title**: Use a clear, descriptive title
-- **Description**: Explain what changes were made and why
-- **Testing**: Describe how you tested the changes
-- **Breaking Changes**: Clearly document any breaking changes
-- **Issue Reference**: Link to relevant issues if applicable
-
-### Types of Contributions
-
-#### Bug Fixes
-- Report bugs via GitHub Issues
-- Include steps to reproduce
-- Provide system information (OS, Python version)
-- Submit fixes with tests when possible
-
-#### Feature Requests
-- Discuss new features in GitHub Issues first
-- Explain the use case and benefits
-- Consider backwards compatibility
-- Provide implementation details if possible
-
-#### Documentation
-- Fix typos and improve clarity
-- Add examples and usage scenarios
-- Update outdated information
-- Translate documentation (if applicable)
-
-### Development Commands
-
-```bash
-# Install development dependencies
-uv sync --dev
-
-# Install with enhanced formatting support
-uv pip install -e '.[dev,formatting]'
-
-# Run tests
-uv run pytest
-
-# Run tests with coverage
-uv run pytest --cov=obsistant
-
-# Format code
-uv run black obsistant/
-
-# Check code style
-uv run black --check obsistant/
-
-# Run linting (if configured)
-uv run ruff check obsistant/
-```
-
-### Commit Message Guidelines
-
-Use conventional commit format:
-
-- `feat:` for new features
-- `fix:` for bug fixes
-- `docs:` for documentation changes
-- `style:` for formatting changes
-- `refactor:` for code refactoring
-- `test:` for test additions/changes
-- `chore:` for maintenance tasks
-
-Examples:
-```
-feat: add support for nested tag extraction
-fix: handle edge case in frontmatter parsing
-docs: update installation instructions
-```
-
-### Getting Help
-
-- Check existing [Issues](https://github.com/yourusername/obsistant/issues) and [Pull Requests](https://github.com/yourusername/obsistant/pulls)
-- Ask questions in GitHub Discussions (if enabled)
-- Read the existing code and tests for examples
-- Join the community chat (if available)
-
-### Code of Conduct
-
-Please note that this project is released with a [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating in this project you agree to abide by its terms.
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
 
 ## Support
 
 If you encounter any issues or have questions:
 
-1. Check the [Issues](https://github.com/yourusername/obsistant/issues) page
+1. Check the [Issues](https://github.com/aturcati/obsistant/issues) page
 2. Create a new issue if your problem isn't already listed
 3. Provide detailed information about your setup and the issue
 
