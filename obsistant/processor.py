@@ -293,12 +293,8 @@ def get_file_creation_date(path: Path) -> str:
     try:
         # On macOS, use st_birthtime for creation time
         stat = path.stat()
-        if hasattr(stat, "st_birthtime"):
-            # macOS/BSD creation time
-            creation_time = stat.st_birthtime
-        else:
-            # Fallback to modification time on other systems
-            creation_time = stat.st_mtime
+        # macOS/BSD creation time, fallback to modification time on other systems
+        creation_time = getattr(stat, "st_birthtime", stat.st_mtime)
 
         # Convert to ISO format date string
         return datetime.fromtimestamp(creation_time).strftime("%Y-%m-%d")
@@ -405,7 +401,8 @@ def format_markdown(text: str) -> str:
     is unavailable to prevent table corruption in end-user vaults.
     """
     # Table detection pattern: pipe table with header separator
-    table_pattern = r"(^|\n)\s*\|.*\|\s*\n\s*\|[-: ]+\|\s*\n"
+    # Matches separator lines like |----------|----------|----------|
+    table_pattern = r"\n\s*\|[-: |]+\|\s*\n"
     has_table = bool(re.search(table_pattern, text))
 
     try:
@@ -1518,12 +1515,8 @@ def _extract_meeting_date(
     # Fallback to file creation date
     try:
         stat = file_path.stat()
-        if hasattr(stat, "st_birthtime"):
-            # macOS/BSD creation time
-            creation_time = stat.st_birthtime
-        else:
-            # Fallback to modification time on other systems
-            creation_time = stat.st_mtime
+        # macOS/BSD creation time, fallback to modification time on other systems
+        creation_time = getattr(stat, "st_birthtime", stat.st_mtime)
         return datetime.fromtimestamp(creation_time)
     except OSError:
         return None
