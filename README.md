@@ -4,6 +4,8 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+I desperately needed a tool to optimize and automate my note taking and archiving system. I did not have time to properly code it. So I vibe-coded it.Use at your own risk!
+
 A powerful Python CLI tool for automatically organizing and managing Obsidian vaults with intelligent tag extraction, file organization, and frontmatter management.
 
 ## Features
@@ -56,6 +58,25 @@ git clone https://github.com/yourusername/obsistant.git
 cd obsistant
 uv sync --dev
 ```
+
+### Enhanced Formatting Installation
+
+For improved GitHub Flavored Markdown (GFM) formatting support, install the formatting extras:
+
+```bash
+# Install with formatting dependencies
+uv pip install -e '.[dev,formatting]'
+
+# Or install just the formatting extras to an existing installation
+uv pip install mdformat-gfm
+```
+
+This adds support for:
+- GitHub Flavored Markdown table formatting
+- Enhanced list and code block formatting
+- Preserved table structure during formatting with `mdformat-gfm`
+- Safeguard to skip formatting when `mdformat-gfm` is missing if tables are present
+- Improved compatibility with GitHub markdown rendering
 
 ## Vault Structure
 
@@ -118,7 +139,7 @@ obsistant process [OPTIONS] VAULT_PATH
 **Options:**
 - `-n, --dry-run`: Show what would be done without making changes
 - `-b, --backup-ext TEXT`: Backup file extension (default: `.bak`)
-- `-f, --format`: Format markdown files for consistent styling
+- `-f, --format`: Format markdown files for consistent styling (includes improved list formatting)
 - `-v, --verbose`: Enable verbose output
 - `--help`: Show help message and exit
 
@@ -145,6 +166,30 @@ Restore corrupted files from backups.
 - `--file FILE`: Restore a specific file instead of all files
 - `-v, --verbose`: Enable verbose output
 
+### Universal Formatting Option
+
+**All content-modifying commands** (`process`, `meetings`, `notes`, `quick-notes`) support the `-f / --format` option:
+
+- **Consistent List Formatting**: Improved handling of bullet points and numbered lists with proper spacing and indentation
+- **Standardized Headings**: Consistent heading formatting and spacing
+- **Markdown Compliance**: Ensures all output follows markdown standards using `mdformat`
+- **Link Formatting**: Proper formatting of markdown links and references
+- **Code Block Formatting**: Consistent formatting of inline code and code blocks
+- **Table Preservation**: GitHub Flavored Markdown tables are preserved and formatted correctly with `mdformat-gfm`
+
+**Fallback Strategy:**
+
+If the `mdformat-gfm` plugin is not available, the tool will detect pipe tables and skip formatting altogether to prevent corruption. This ensures the table structures in your markdown files remain intact, even if enhanced formatting is unavailable.
+
+**Usage Examples:**
+```bash
+# Apply formatting to all commands
+obsistant process ~/vault --format
+obsistant meetings ~/vault --format
+obsistant notes ~/vault --format
+obsistant quick-notes ~/vault --format
+```
+
 ### Specialized Commands
 
 #### Organize Meeting Notes
@@ -154,6 +199,7 @@ obsistant meetings [OPTIONS] VAULT_PATH
 - Renames files using YYMMDD_Title format
 - Ensures all files have the 'meeting' tag
 - Extracts dates from frontmatter or file creation date
+- **Supports `-f / --format`** for consistent markdown formatting
 
 #### Organize Main Notes by Tags
 ```bash
@@ -162,6 +208,7 @@ obsistant notes [OPTIONS] VAULT_PATH
 - Moves files to appropriate subfolders based on tags
 - Supports nested folder structures for subtags
 - Handles these target tags: `products`, `projects`, `devops`, `challenges`, `events`
+- **Supports `-f / --format`** for consistent markdown formatting
 
 #### Process Quick Notes
 ```bash
@@ -171,6 +218,7 @@ obsistant quick-notes [OPTIONS] VAULT_PATH
 - Files with `meeting` tag → moved to Meetings folder
 - Other files → moved to appropriate Notes subfolders
 - Applies appropriate formatting based on destination
+- **Supports `-f / --format`** for consistent markdown formatting
 
 #### Create Vault Backup
 ```bash
@@ -251,14 +299,34 @@ obsistant process ~/Documents/MyVault --format
 # Process quick notes from daily capture
 obsistant quick-notes ~/Documents/MyVault
 
-# Organize meeting notes
-obsistant meetings ~/Documents/MyVault
+# Organize meeting notes with formatting
+obsistant meetings ~/Documents/MyVault --format
 
-# Organize main notes by tags
-obsistant notes ~/Documents/MyVault
+# Organize main notes by tags with formatting
+obsistant notes ~/Documents/MyVault --format
+
+# Process quick notes with improved formatting
+obsistant quick-notes ~/Documents/MyVault --format
 
 # Create backup before major changes
 obsistant backup ~/Documents/MyVault --name "pre-migration"
+```
+
+#### Formatting Improvements Examples
+```bash
+# All these commands now support improved list formatting with -f/--format:
+
+# Process vault with improved list and markdown formatting
+obsistant process ~/vault --format
+
+# Meeting notes with consistent bullet point formatting
+obsistant meetings ~/vault --format
+
+# Notes organization with standardized list formatting
+obsistant notes ~/vault --format
+
+# Quick notes processing with formatting improvements
+obsistant quick-notes ~/vault --format
 ```
 
 #### Daily Workflow
@@ -633,6 +701,9 @@ We welcome contributions to obsistant! Here's how to get started:
 ```bash
 # Install development dependencies
 uv sync --dev
+
+# Install with enhanced formatting support
+uv pip install -e '.[dev,formatting]'
 
 # Run tests
 uv run pytest

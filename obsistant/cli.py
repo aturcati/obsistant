@@ -81,7 +81,7 @@ def cli(ctx: click.Context) -> None:
     "-f",
     "format_markdown",
     is_flag=True,
-    help="Format markdown files for consistent styling",
+    help="Format markdown files for consistent styling (preserves tables when mdformat-gfm is available)",
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 def process(
@@ -170,12 +170,20 @@ def process(
 @click.option(
     "--backup-ext", "-b", default=".bak", help="Backup file extension (default: .bak)"
 )
+@click.option(
+    "--format",
+    "-f",
+    "format_markdown",
+    is_flag=True,
+    help="Format markdown files for consistent styling (preserves tables when mdformat-gfm is available)",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 def meetings(
     vault_path: Path,
     meetings_folder: str,
     dry_run: bool,
     backup_ext: str,
+    format_markdown: bool,
     verbose: bool,
 ) -> None:
     """Process meetings folder to rename files and ensure 'meeting' tags.
@@ -186,6 +194,7 @@ def meetings(
     - Rename files using the template: YYMMDD_Title
     - Date comes from frontmatter 'created' field or file creation date
     - Ensure all files have the 'meeting' tag in frontmatter
+    - Archive meetings older than 2 working weeks to Archive/YYYY/ folders
     - Create backup files before making changes
     """
     logger = setup_logger(verbose)
@@ -206,6 +215,7 @@ def meetings(
             dry_run=dry_run,
             backup_ext=backup_ext,
             logger=logger,
+            format_md=format_markdown,
         )
         logger.info("Meetings folder processing complete!")
     except Exception as e:
@@ -254,12 +264,19 @@ def clear_backups(
 )
 @click.option(
     "--dry-run",
-    "-d",
+    "-n",
     is_flag=True,
     help="Show what would be done without making changes",
 )
 @click.option(
     "--backup-ext", "-b", default=".bak", help="Backup file extension (default: .bak)"
+)
+@click.option(
+    "--format",
+    "-f",
+    "format_markdown",
+    is_flag=True,
+    help="Format markdown files for consistent styling (preserves tables when mdformat-gfm is available)",
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 def notes(
@@ -267,6 +284,7 @@ def notes(
     notes_folder: str,
     dry_run: bool,
     backup_ext: str,
+    format_markdown: bool,
     verbose: bool,
 ) -> None:
     """Process notes folder to organize files by tags in separate folders.
@@ -294,6 +312,7 @@ def notes(
             dry_run=dry_run,
             backup_ext=backup_ext,
             logger=logger,
+            format_md=format_markdown,
         )
         logger.info("Notes folder processing complete!")
     except Exception as e:
@@ -323,12 +342,19 @@ def notes(
 )
 @click.option(
     "--dry-run",
-    "-d",
+    "-n",
     is_flag=True,
     help="Show what would be done without making changes",
 )
 @click.option(
     "--backup-ext", "-b", default=".bak", help="Backup file extension (default: .bak)"
+)
+@click.option(
+    "--format",
+    "-f",
+    "format_markdown",
+    is_flag=True,
+    help="Format markdown files for consistent styling (preserves tables when mdformat-gfm is available)",
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 def quick_notes(
@@ -338,6 +364,7 @@ def quick_notes(
     meetings_folder: str,
     dry_run: bool,
     backup_ext: str,
+    format_markdown: bool,
     verbose: bool,
 ) -> None:
     """Process quick notes folder to organize files by tags.
@@ -370,6 +397,7 @@ def quick_notes(
             backup_ext=backup_ext,
             logger=logger,
             meetings_folder=meetings_folder,
+            format_md=format_markdown,
         )
         logger.info("Quick notes processing complete!")
     except Exception as e:
@@ -424,10 +452,14 @@ def backup(
     type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path),
     help="Restore a specific file instead of all files",
 )
+@click.option(
+    "--backup-ext", "-b", default=".bak", help="Backup file extension (default: .bak)"
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 def restore(
     vault_path: Path,
     specific_file: Path | None,
+    backup_ext: str,
     verbose: bool,
 ) -> None:
     """Restore corrupted files from backups.
@@ -449,7 +481,7 @@ def restore(
                     f"File {specific_file} is not within vault {vault_path}"
                 ) from e
 
-        restored_count = restore_files_func(vault_path, specific_file)
+        restored_count = restore_files_func(vault_path, specific_file, backup_ext)
         if restored_count > 0:
             if specific_file:
                 logger.info(f"Restored {specific_file} from backup")

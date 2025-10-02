@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -395,19 +395,276 @@ def render_frontmatter(data: dict[str, Any]) -> str:
 
 
 def format_markdown(text: str) -> str:
-    """Format markdown text using mdformat for consistent styling."""
+    """Format markdown text using mdformat for consistent styling.
+
+    Uses the GitHub Flavored Markdown (GFM) plugin to preserve tables and other
+    GFM-specific syntax during formatting. This prevents table structure from
+    being corrupted while still applying consistent markdown formatting.
+
+    As a safeguard, detects pipe tables and skips formatting if mdformat-gfm
+    is unavailable to prevent table corruption in end-user vaults.
+    """
+    # Table detection pattern: pipe table with header separator
+    table_pattern = r"(^|\n)\s*\|.*\|\s*\n\s*\|[-: ]+\|\s*\n"
+    has_table = bool(re.search(table_pattern, text))
+
     try:
         result = mdformat.text(
             text,
             options={
-                "wrap": "no",  # Don't wrap lines
-                "number": False,  # Don't number lists
+                "wrap": "no",
+                "number": False,
             },
+            extensions={"gfm"},
         )
-        return str(result)
+
+        # Clean up list formatting with robust state machine
+        cleaned_result = _clean_list_blank_lines(result)
+
+        return str(cleaned_result)
+    except (ImportError, KeyError, ValueError):
+        # mdformat-gfm plugin is not available
+        if has_table:
+            console.print(
+                "[yellow]Warning: Detected pipe table but mdformat-gfm plugin is unavailable. "
+                "Skipping formatting to prevent table corruption.[/]"
+            )
+            return text
+        # If no tables, proceed with basic mdformat (fallback)
+        try:
+            result = mdformat.text(
+                text,
+                options={
+                    "wrap": "no",
+                    "number": False,
+                },
+            )
+            cleaned_result = _clean_list_blank_lines(result)
+            return str(cleaned_result)
+        except Exception:
+            return text
     except Exception:
-        # If formatting fails, return original text
+        # If other formatting issues occur
+        if has_table:
+            console.print(
+                "[yellow]Warning: Detected pipe table but formatting failed. "
+                "Skipping formatting to prevent table corruption.[/]"
+            )
+            return text
+        # If no tables, return original text as fallback
         return text
+
+
+def _clean_list_blank_lines(text: str) -> str:
+    """Remove blank lines between consecutive list items at the same indent level.
+
+    This post-processes mdformat output to remove excessive blank lines while
+    preserving intentional spacing for readability and structure.
+
+    Removes blank lines between:
+    - Sibling bullet/unordered list items (-, *, +) at same indent
+    - Going from parent to child list items
+    - Going from child back to parent/sibling list items
+
+    Preserves blank lines around:
+    - Code blocks and fenced content
+    - Different markdown elements (headers, paragraphs)
+    - Multi-paragraph list item content
+    """
+    lines = text.split("\n")
+    result_lines = []
+    i = 0
+
+    while i < len(lines):
+        current_line = lines[i]
+
+        # Check if this is a blank line that might need to be removed
+        if current_line.strip() == "" and i > 0:
+            # Look for context around this blank line
+            prev_line_idx = i - 1
+            next_non_blank_idx = _find_next_non_blank_line(lines, i)
+
+            if next_non_blank_idx is not None:
+                prev_line = lines[prev_line_idx]
+                next_line = lines[next_non_blank_idx]
+
+                prev_list_info = _parse_list_item(prev_line)
+                next_list_info = _parse_list_item(next_line)
+
+                # Special case: Don't remove blank lines directly adjacent to code blocks
+                # Check if the previous or next line contains code block markers
+                if "```" in prev_line or "```" in next_line:
+                    result_lines.append(current_line)
+                    i += 1
+                    continue
+
+                # Also check if we're between a list item and indented code block content
+                if (
+                    prev_list_info is not None
+                    and next_line.strip().startswith("```")
+                    and len(next_line) - len(next_line.lstrip())
+                    > prev_list_info["indent"]
+                ):
+                    result_lines.append(current_line)
+                    i += 1
+                    continue
+
+                # Both previous and next lines are list items
+                if prev_list_info is not None and next_list_info is not None:
+                    # Remove blank lines between list items based on the relationship
+                    if _should_remove_blank_line_between_lists(
+                        prev_list_info, next_list_info, prev_line, next_line
+                    ):
+                        # Skip this blank line (and any consecutive blank lines)
+                        i = next_non_blank_idx
+                        continue
+
+                # Previous line is list item, next is indented content
+                elif prev_list_info is not None and next_list_info is None:
+                    # Check if next line is indented content of the list item
+                    if _is_indented_paragraph_content(
+                        next_line, prev_list_info["indent"]
+                    ):
+                        # This is a paragraph within a list item, keep the blank line
+                        result_lines.append(current_line)
+                        i += 1
+                        continue
+                    else:
+                        # Next line starts a new block, keep blank line
+                        result_lines.append(current_line)
+                        i += 1
+                        continue
+
+        result_lines.append(current_line)
+        i += 1
+
+    return "\n".join(result_lines)
+
+
+def _parse_list_item(line: str) -> dict[str, Any] | None:
+    """Parse a line to determine if it's a list item and extract info.
+
+    Returns dict with 'indent', 'marker', 'content' or None if not a list item.
+    """
+    # Match unordered lists (-, *, +) and ordered lists (1., 2., etc.)
+    unordered_pattern = r"^([ \t]*)([-*+])[ \t]+(.*)$"
+    ordered_pattern = r"^([ \t]*)(\d+\.)[ \t]+(.*)$"
+    # Also match lettered lists like a., b., i., ii., etc.
+    lettered_pattern = r"^([ \t]*)([a-z]+\.|[ivx]+\.)[ \t]+(.*)$"
+
+    # Try unordered list pattern first
+    match = re.match(unordered_pattern, line)
+    if match:
+        return {
+            "indent": len(match.group(1)),
+            "marker": match.group(2),
+            "content": match.group(3),
+            "type": "unordered",
+        }
+
+    # Try ordered list pattern
+    match = re.match(ordered_pattern, line)
+    if match:
+        return {
+            "indent": len(match.group(1)),
+            "marker": match.group(2),
+            "content": match.group(3),
+            "type": "ordered",
+        }
+
+    # Try lettered list pattern
+    match = re.match(lettered_pattern, line)
+    if match:
+        return {
+            "indent": len(match.group(1)),
+            "marker": match.group(2),
+            "content": match.group(3),
+            "type": "lettered",
+        }
+
+    return None
+
+
+def _should_remove_blank_line_between_lists(
+    prev_list_info: dict[str, Any],
+    next_list_info: dict[str, Any],
+    prev_line: str,
+    next_line: str,
+) -> bool:
+    """Determine if blank line between two list items should be removed.
+
+    Remove blank lines when:
+    - Both items are unordered at the same indent level (sibling unordered items)
+    - Both items are the same type and nested appropriately
+    - Going from child back to parent within unordered lists
+
+    Preserve blank lines when:
+    - Mixing ordered and unordered list types (for readability)
+    - Large indent differences (different sections)
+    """
+    prev_indent = prev_list_info["indent"]
+    next_indent = next_list_info["indent"]
+    prev_type = prev_list_info["type"]
+    next_type = next_list_info["type"]
+
+    # Same indent level - only remove blank line for same list types
+    if prev_indent == next_indent:
+        # Only remove blank lines between unordered list items
+        # Keep blank lines between ordered items or mixed types for readability
+        return bool(prev_type == "unordered" and next_type == "unordered")
+
+    # Next item is indented more than the previous (child of parent)
+    # Remove blank line only for unordered parent to unordered child
+    if next_indent > prev_indent:
+        return bool(prev_type == "unordered" and next_type == "unordered")
+
+    # Next item is indented less than the previous (going back to parent level)
+    # Remove blank line only for unordered lists within reasonable indent changes
+    if next_indent < prev_indent:
+        # Only remove for unordered lists
+        if prev_type == "unordered" and next_type == "unordered":
+            # If the difference is reasonable (typically 2-5 spaces per level)
+            indent_diff = prev_indent - next_indent
+            # Allow going back 1-3 levels without blank line
+            if indent_diff <= 5:  # Reasonable parent level transition
+                return True
+
+    # Keep blank line for other cases (mixed types, new sections, etc.)
+    return False
+
+
+def _find_next_non_blank_line(lines: list[str], start_idx: int) -> int | None:
+    """Find the index of the next non-blank line after start_idx.
+
+    Returns None if no non-blank line is found.
+    """
+    for i in range(start_idx + 1, len(lines)):
+        if lines[i].strip() != "":
+            return i
+    return None
+
+
+def _is_indented_paragraph_content(line: str, list_indent: int) -> bool:
+    """Check if a line is indented paragraph content belonging to a list item.
+
+    Content is considered indented paragraph content if:
+    1. It has more indentation than the list marker
+    2. It's not itself a list item
+    3. It's not a code block or other special markdown element
+    """
+    if line.strip() == "":
+        return False
+
+    # Don't treat other list items as paragraph content
+    if _parse_list_item(line) is not None:
+        return False
+
+    # Count leading whitespace
+    leading_whitespace = len(line) - len(line.lstrip())
+
+    # Content should be indented more than the list item marker
+    # Standard markdown indentation is 2-4 spaces for list content
+    return leading_whitespace > list_indent
 
 
 def create_backup_path(vault_root: Path, file_path: Path, backup_ext: str) -> Path:
@@ -454,7 +711,9 @@ def clear_backups(vault_root: Path) -> int:
     return deleted_count
 
 
-def restore_files(vault_root: Path, specific_file: Path | None = None) -> int:
+def restore_files(
+    vault_root: Path, specific_file: Path | None = None, backup_ext: str = ".bak"
+) -> int:
     """Restore corrupted files from backups. Returns count of restored files."""
     backup_root = vault_root.parent / f"{vault_root.name}_backups"
 
@@ -465,7 +724,7 @@ def restore_files(vault_root: Path, specific_file: Path | None = None) -> int:
 
     if specific_file:
         # Restore a specific file
-        backup_path = create_backup_path(vault_root, specific_file, ".bak")
+        backup_path = create_backup_path(vault_root, specific_file, backup_ext)
         if backup_path.exists():
             try:
                 backup_content = backup_path.read_text(encoding="utf-8")
@@ -475,14 +734,14 @@ def restore_files(vault_root: Path, specific_file: Path | None = None) -> int:
                 pass
     else:
         # Restore all files
-        for backup_file in backup_root.rglob("*.bak"):
+        for backup_file in backup_root.rglob(f"*{backup_ext}"):
             if backup_file.is_file():
                 try:
                     # Calculate the original file path
                     relative_path = backup_file.relative_to(backup_root)
-                    # Remove the .bak extension
+                    # Remove the backup extension
                     original_relative_path = relative_path.with_suffix(
-                        relative_path.suffix.replace(".bak", "")
+                        relative_path.suffix.replace(backup_ext, "")
                     )
                     original_path = vault_root / original_relative_path
 
@@ -566,20 +825,12 @@ def process_file(
     added_tags = new_tags - original_tags
     removed_tags = original_tags - new_tags
 
-    # Check if we need to process this file
-    needs_processing = (
-        bool(tags)
-        or bool(meeting_transcript)
-        or frontmatter is not None
-        or format_md
-        or new_frontmatter != original_frontmatter  # Creation date was added
+    # Always process files for formatting and check for other changes
+    needs_processing = format_md or (
+        bool(tags) or bool(meeting_transcript) or frontmatter is not None
     )
 
-    if not needs_processing:
-        logger.info(f"No changes needed for {path}")
-        return stats
-
-    # Format markdown if requested
+    # Format markdown regardless, as requested
     if format_md:
         body = format_markdown(body)
 
@@ -588,6 +839,10 @@ def process_file(
         new_text = render_frontmatter(new_frontmatter) + body
     else:
         new_text = body
+
+    # Check if frontmatter or body has changed after formatting
+    if not needs_processing and new_text == text:
+        return stats
 
     # Only write if content has changed
     if new_text != text:
@@ -667,8 +922,6 @@ def process_file(
                 ):
                     actions.append("update modification date")
             logger.info(f"[DRY RUN] Would process {path} - {' and '.join(actions)}")
-    else:
-        logger.info(f"No changes needed for {path}")
 
     return stats
 
@@ -740,9 +993,6 @@ def _move_file_to_folder(
 
     # Skip if file is already in the correct location
     if file_path.resolve() == target_path.resolve():
-        logger.info(
-            f"File {file_path.name} already in correct location ({target_folder})"
-        )
         return False
 
     # Create the directory if it doesn't exist
@@ -786,6 +1036,7 @@ def process_notes_folder(
     dry_run: bool,
     backup_ext: str,
     logger: Any,
+    format_md: bool = False,
 ) -> None:
     """Process all files in the Notes folder to organize them by tags into subfolders.
     Recursively traverses the entire notes directory tree and moves files to appropriate
@@ -808,7 +1059,12 @@ def process_notes_folder(
     # Recursively find all markdown files in the notes directory tree
     for markdown_file in notes_path.rglob("*.md"):
         try:
-            # Read the file content
+            # First process the file to extract tags, add metadata, and optionally format
+            process_file(
+                markdown_file, vault_root, dry_run, backup_ext, logger, format_md
+            )
+
+            # Read the file content after processing
             with markdown_file.open("r", encoding="utf-8") as file:
                 text = file.read()
 
@@ -826,9 +1082,6 @@ def process_notes_folder(
             # Otherwise, move to "various" folder
             if not target_folder:
                 target_folder = "various"
-                logger.info(
-                    f"Moving {markdown_file.name} to various folder (tags: {tags})"
-                )
 
             # Create the target directory path
             target_dir = notes_path / target_folder
@@ -868,11 +1121,13 @@ def process_meetings_folder(
     dry_run: bool,
     backup_ext: str,
     logger: Any,
+    format_md: bool = False,
 ) -> None:
     """Process all files in the Meetings folder to rename them and ensure they have the 'meeting' tag.
     Renames files using the template: YYMMDD_Title
     where YYMMDD comes from frontmatter 'created' field or file creation date.
     Also ensures all files have the 'meeting' tag.
+    Archives meetings older than 2 working weeks to Archive/YYYY/ folders.
     """
     meetings_path = vault_root / meetings_folder
 
@@ -883,10 +1138,19 @@ def process_meetings_folder(
     total_processed = 0
     total_renamed = 0
     total_meeting_tags_added = 0
+    total_archived = 0
+
+    # Calculate the cutoff date for archiving (2 working weeks ago)
+    cutoff_date = _calculate_archive_cutoff_date()
 
     for markdown_file in meetings_path.glob("*.md"):
         try:
-            # Read the file content
+            # First process the file to extract tags, add metadata, and optionally format
+            process_file(
+                markdown_file, vault_root, dry_run, backup_ext, logger, format_md
+            )
+
+            # Read the file content after processing
             with markdown_file.open("r", encoding="utf-8") as file:
                 text = file.read()
 
@@ -928,6 +1192,7 @@ def process_meetings_folder(
 
             # Generate new filename based on template
             new_filename = _generate_meeting_filename(markdown_file, frontmatter or {})
+            current_file = markdown_file
 
             if new_filename and new_filename != markdown_file.name:
                 new_path = markdown_file.parent / new_filename
@@ -941,11 +1206,21 @@ def process_meetings_folder(
                     if not dry_run:
                         markdown_file.rename(new_path)
                         logger.info(f"Renamed {markdown_file.name} -> {new_filename}")
+                        current_file = new_path
                     else:
                         logger.info(
                             f"[DRY RUN] Would rename {markdown_file.name} -> {new_filename}"
                         )
                     total_renamed += 1
+
+            # Check if this meeting should be archived
+            meeting_date = _extract_meeting_date(current_file, frontmatter or {})
+            if meeting_date and meeting_date < cutoff_date:
+                archive_result = _archive_meeting_file(
+                    current_file, meetings_path, meeting_date, dry_run, logger
+                )
+                if archive_result:
+                    total_archived += 1
 
             total_processed += 1
 
@@ -958,6 +1233,7 @@ def process_meetings_folder(
     console.print(f"Total files processed: [bold]{total_processed}[/]")
     console.print(f"Files renamed: [bold]{total_renamed}[/]")
     console.print(f"'meeting' tags added: [bold]{total_meeting_tags_added}[/]")
+    console.print(f"Files archived: [bold]{total_archived}[/]")
 
 
 def _generate_meeting_filename(
@@ -1022,6 +1298,7 @@ def process_quick_notes_folder(
     backup_ext: str,
     logger: Any,
     meetings_folder: str = "Meetings",
+    format_md: bool = False,
 ) -> None:
     """Process all files in the Quick Notes folder to organize them by tags.
     This modified version processes the quick notes folder, sorts files into
@@ -1050,14 +1327,6 @@ def process_quick_notes_folder(
         logger.error(f"Notes folder '{notes_folder}' not found in vault")
         return
 
-    # First process the entire quick notes folder
-    process_vault(
-        root=str(quick_notes_path),
-        dry_run=dry_run,
-        backup_ext=backup_ext,
-        logger=logger,
-    )
-
     total_processed = 0
     total_moved = 0
     folders_created = set()
@@ -1065,7 +1334,12 @@ def process_quick_notes_folder(
     # Recursively find all markdown files in the quick notes directory tree
     for markdown_file in quick_notes_path.rglob("*.md"):
         try:
-            # Read the file content
+            # First process the file to extract tags and add metadata
+            process_file(
+                markdown_file, vault_root, dry_run, backup_ext, logger, format_md
+            )
+
+            # Read the file content after processing
             with markdown_file.open("r", encoding="utf-8") as file:
                 text = file.read()
 
@@ -1098,15 +1372,6 @@ def process_quick_notes_folder(
                     total_moved += 1
                     folders_created.add(meetings_folder)
 
-                    # Apply meetings formatting after moving
-                    process_meetings_folder(
-                        vault_root=vault_root,
-                        meetings_folder=meetings_folder,
-                        dry_run=dry_run,
-                        backup_ext=backup_ext,
-                        logger=logger,
-                    )
-
                 total_processed += 1
                 continue
 
@@ -1117,9 +1382,6 @@ def process_quick_notes_folder(
             # Otherwise, move to "various" folder in Notes
             if not target_folder:
                 target_folder = "various"
-                logger.info(
-                    f"Moving {markdown_file.name} to various folder (tags: {tags})"
-                )
 
             # Create the target directory path in the Notes folder
             target_dir = notes_path / target_folder
@@ -1138,15 +1400,6 @@ def process_quick_notes_folder(
             ):
                 total_moved += 1
                 folders_created.add(target_folder)
-
-                # Apply notes formatting after moving
-                process_notes_folder(
-                    vault_root=vault_root,
-                    notes_folder=notes_folder,
-                    dry_run=dry_run,
-                    backup_ext=backup_ext,
-                    logger=logger,
-                )
 
             total_processed += 1
 
@@ -1207,3 +1460,129 @@ def process_vault(
     console.print(f"Total files processed: [bold]{total_processed_files}[/]")
     console.print(f"Total tags added: [bold]{total_added_tags}[/]")
     console.print(f"Total tags removed: [bold]{total_removed_tags}[/]")
+
+
+def _calculate_archive_cutoff_date() -> datetime:
+    """Calculate the cutoff date for archiving meetings (2 working weeks ago).
+
+    Returns:
+        datetime: The cutoff date, meetings older than this should be archived
+    """
+    today = datetime.now()
+
+    # Calculate 2 working weeks (10 business days) ago
+    working_days_back = 0
+    current_date = today
+
+    while working_days_back < 10:
+        current_date -= timedelta(days=1)
+        # Monday = 0, Sunday = 6
+        if current_date.weekday() < 5:  # Monday to Friday
+            working_days_back += 1
+
+    return current_date
+
+
+def _extract_meeting_date(
+    file_path: Path, frontmatter: dict[str, Any]
+) -> datetime | None:
+    """Extract the meeting date from frontmatter or filename.
+
+    Args:
+        file_path: Path to the meeting file
+        frontmatter: Frontmatter dictionary
+
+    Returns:
+        datetime: The meeting date or None if not found
+    """
+    # Try frontmatter 'created' field first
+    if "created" in frontmatter:
+        date_str = frontmatter["created"]
+        if isinstance(date_str, str):
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                pass
+
+    # Try to extract date from filename (YYMMDD format)
+    filename = file_path.stem
+    date_match = re.match(r"^(\d{6})_", filename)
+    if date_match:
+        date_str = date_match.group(1)
+        try:
+            # Parse YYMMDD format
+            return datetime.strptime(date_str, "%y%m%d")
+        except ValueError:
+            pass
+
+    # Fallback to file creation date
+    try:
+        stat = file_path.stat()
+        if hasattr(stat, "st_birthtime"):
+            # macOS/BSD creation time
+            creation_time = stat.st_birthtime
+        else:
+            # Fallback to modification time on other systems
+            creation_time = stat.st_mtime
+        return datetime.fromtimestamp(creation_time)
+    except OSError:
+        return None
+
+
+def _archive_meeting_file(
+    file_path: Path,
+    meetings_path: Path,
+    meeting_date: datetime,
+    dry_run: bool,
+    logger: Any,
+) -> bool:
+    """Archive a meeting file to the Archive/YYYY/ folder.
+
+    Args:
+        file_path: Path to the meeting file
+        meetings_path: Path to the meetings folder
+        meeting_date: Date of the meeting
+        dry_run: Whether this is a dry run
+        logger: Logger instance
+
+    Returns:
+        bool: True if file was archived, False otherwise
+    """
+    # Create archive folder structure: Archive/YYYY/
+    year = meeting_date.year
+    archive_dir = meetings_path / "Archive" / str(year)
+    archive_path = archive_dir / file_path.name
+
+    # Skip if file is already in archive
+    if "Archive" in str(file_path.relative_to(meetings_path)):
+        return False
+
+    # Skip if target file already exists
+    if archive_path.exists():
+        logger.warning(
+            f"Archive file {archive_path.relative_to(meetings_path)} already exists, skipping"
+        )
+        return False
+
+    # Create archive directory if needed
+    if not archive_dir.exists():
+        if not dry_run:
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(
+                f"Created archive folder: {archive_dir.relative_to(meetings_path)}"
+            )
+        else:
+            logger.info(
+                f"[DRY RUN] Would create archive folder: {archive_dir.relative_to(meetings_path)}"
+            )
+
+    # Move file to archive
+    if not dry_run:
+        file_path.rename(archive_path)
+        logger.info(f"Archived {file_path.name} -> Archive/{year}/{file_path.name}")
+    else:
+        logger.info(
+            f"[DRY RUN] Would archive {file_path.name} -> Archive/{year}/{file_path.name}"
+        )
+
+    return True
