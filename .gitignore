@@ -131,3 +131,6 @@ dmypy.json
 # Backup files
 *.bak
 *.backup
+
+# Dev folders
+dev/
