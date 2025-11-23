@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import shutil
 from datetime import datetime, timedelta
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 TAG_REGEX = r"(?<!\w)#([\w/-]+)(?=\s|$)"
 GRANOLA_LINK_PATTERN = r"Chat with meeting transcript:\s*\[([^\]]+)\]\([^\)]+\)"
 TARGET_TAGS = ["products", "projects", "devops", "challenges", "events"]
+MDFORMAT_GFM_AVAILABLE = importlib.util.find_spec("mdformat_gfm") is not None
 
 # Date formats to try when parsing date strings
 DATE_FORMATS = [
@@ -405,6 +407,15 @@ def format_markdown(text: str) -> str:
     table_pattern = r"\n\s*\|[-: |]+\|\s*\n"
     has_table = bool(re.search(table_pattern, text))
 
+    extensions = {"gfm"} if MDFORMAT_GFM_AVAILABLE else None
+
+    if has_table and not MDFORMAT_GFM_AVAILABLE:
+        console.print(
+            "[yellow]Warning: Detected pipe table but mdformat-gfm plugin is unavailable. "
+            "Skipping formatting to prevent table corruption.[/]"
+        )
+        return text
+
     try:
         result = mdformat.text(
             text,
@@ -412,10 +423,9 @@ def format_markdown(text: str) -> str:
                 "wrap": "no",
                 "number": False,
             },
-            extensions={"gfm"},
+            extensions=extensions or (),
         )
 
-        # Clean up list formatting with robust state machine
         cleaned_result = _clean_list_blank_lines(result)
 
         return str(cleaned_result)
@@ -1140,7 +1150,10 @@ def process_meetings_folder(
     # Calculate the cutoff date for archiving (2 working weeks ago)
     cutoff_date = _calculate_archive_cutoff_date()
 
-    for markdown_file in meetings_path.glob("*.md"):
+    for markdown_file in meetings_path.rglob("*.md"):
+        relative_parts = markdown_file.relative_to(meetings_path).parts
+        if relative_parts and relative_parts[0] == "Archive":
+            continue
         try:
             # First process the file to extract tags, add metadata, and optionally format
             process_file(

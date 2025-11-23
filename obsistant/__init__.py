@@ -5,7 +5,7 @@ A CLI tool to extract #tags from markdown content and add them to YAML frontmatt
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __author__ = "Andrea Turcati"
 __license__ = "MIT"
 

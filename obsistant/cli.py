@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -22,6 +23,46 @@ from .processor import (
 )
 
 
+class DefaultCommandGroup(click.Group):
+    """Group that falls back to a default command when none is provided."""
+
+    def __init__(
+        self,
+        *args: Any,
+        default_command: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.default_command = default_command
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, Any, list[str]]:
+        if not args and self.default_command:
+            cmd = self.get_command(ctx, self.default_command)
+            if cmd is None:
+                raise click.UsageError(
+                    f"Default command '{self.default_command}' not found."
+                )
+            return self.default_command, cmd, args
+
+        if args:
+            cmd_name = args[0]
+            cmd = self.get_command(ctx, cmd_name)
+            if cmd is not None:
+                return cmd_name, cmd, args[1:]
+
+        if self.default_command:
+            cmd = self.get_command(ctx, self.default_command)
+            if cmd is None:
+                raise click.UsageError(
+                    f"Default command '{self.default_command}' not found."
+                )
+            return self.default_command, cmd, args
+        result: tuple[str | None, Any, list[str]] = super().resolve_command(ctx, args)
+        return result
+
+
 def setup_logger(verbose: bool = False) -> logging.Logger:
     """Set up logger with appropriate level."""
     logger = logging.getLogger("obsistant")
@@ -36,7 +77,7 @@ def setup_logger(verbose: bool = False) -> logging.Logger:
     return logger
 
 
-@click.group()
+@click.group(cls=DefaultCommandGroup, default_command="process")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Process Obsidian vault to extract tags and add metadata.
