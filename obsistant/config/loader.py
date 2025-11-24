@@ -1,0 +1,44 @@
+"""Configuration loader for obsistant."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+from .schema import Config
+
+
+def load_config(vault_root: Path) -> Config | None:
+    """Load configuration from config.yaml in vault root.
+
+    Args:
+        vault_root: Path to the vault root directory.
+
+    Returns:
+        Config object if config.yaml exists, None otherwise.
+    """
+    config_path = vault_root / "config.yaml"
+    if not config_path.exists():
+        return None
+
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            if data is None:
+                return None
+            return Config.from_dict(data)
+    except (OSError, yaml.YAMLError):
+        # Log error but don't fail - return None to use defaults
+        return None
+
+
+def save_config(config: Config, vault_root: Path) -> None:
+    """Save configuration to config.yaml in vault root.
+
+    Args:
+        config: Config object to save.
+        vault_root: Path to the vault root directory.
+    """
+    config_path = vault_root / "config.yaml"
+    config_path.write_text(config.to_yaml(), encoding="utf-8")

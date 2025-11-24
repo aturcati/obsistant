@@ -77,29 +77,99 @@ This adds support for:
 - Safeguard to skip formatting when `mdformat-gfm` is missing if tables are present
 - Improved compatibility with GitHub markdown rendering
 
+## Quick Start
+
+### Initialize a New Vault
+
+The easiest way to get started is to initialize a new vault with the recommended structure:
+
+```bash
+obsistant init /path/to/your/vault
+```
+
+This will create:
+- The recommended folder structure
+- A `config.yaml` file with default configuration values
+
+You can customize the initialization:
+
+```bash
+# Only create config.yaml, skip folder structure
+obsistant init /path/to/vault --skip-folders
+
+# Overwrite existing config.yaml
+obsistant init /path/to/vault --overwrite-config
+```
+
 ## Vault Structure
 
 Obsistant is designed to work with a structured Obsidian vault. Here's the recommended organization:
 
 ```
 Your-Vault/
-├── 00-Quick Notes/          # Temporary notes for quick capture
-├── 10-Meetings/            # Meeting notes with YYMMDD_Title format
-├── 20-Notes/               # Main knowledge base, organized by tags
-│   ├── products/           # Product-related notes
-│   │   ├── product-a/
-│   │   └── product-b/
-│   ├── projects/           # Project documentation
-│   │   ├── project-x/
-│   │   └── project-y/
-│   ├── devops/            # DevOps and infrastructure notes
-│   │   └── tools/
+├── config.yaml            # Configuration file (created by init command)
+├── 00-Quick Notes/        # Temporary notes for quick capture
+├── 10-Meetings/          # Meeting notes with YYMMDD_Title format
+│   └── Archive/          # Archived meetings organized by year
+├── 20-Notes/             # Main knowledge base, organized by tags
+│   ├── products/         # Product-related notes
+│   ├── projects/          # Project documentation
+│   ├── devops/           # DevOps and infrastructure notes
+│   ├── challenges/       # Technical challenges and solutions
 │   ├── events/           # Event notes and conferences
 │   └── various/          # Miscellaneous notes
 ├── 30-Guides/            # Documentation and guides
 ├── 40-Vacations/         # Personal time tracking
 └── 50-Files/             # Attachments and resources
 ```
+
+## Configuration
+
+Obsistant uses a `config.yaml` file in the vault root to configure all behavior. The configuration file is automatically created when you run `obsistant init`, or you can create it manually.
+
+### Configuration File Structure
+
+```yaml
+vault:
+  folders:
+    quick_notes: "00-Quick Notes"
+    meetings: "10-Meetings"
+    notes: "20-Notes"
+    guides: "30-Guides"
+    vacations: "40-Vacations"
+    files: "50-Files"
+
+tags:
+  target_tags: ["products", "projects", "devops", "challenges", "events"]
+  ignored_tags: ["olt"]
+  tag_regex: "(?<!\\w)#([\\w/-]+)(?=\\s|$)"
+
+meetings:
+  filename_format: "YYMMDD_Title"
+  archive_weeks: 2
+  auto_tag: "meeting"
+
+processing:
+  backup_ext: ".bak"
+  date_formats:
+    - "%Y-%m-%d"
+    - "%Y/%m/%d"
+    # ... more formats
+  date_patterns:
+    - "(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2})"
+    # ... more patterns
+
+granola:
+  link_pattern: "Chat with meeting transcript:\\s*\\[([^\\]]+)\\]\\([^\\)]+\\)"
+```
+
+### Configuration Priority
+
+1. **CLI arguments** - Highest priority, override config and defaults
+2. **config.yaml** - Used if present
+3. **Defaults** - Used if config.yaml doesn't exist
+
+This means you can always override config values via command-line arguments when needed.
 
 ## Usage
 
@@ -118,6 +188,7 @@ obsistant [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Commands:**
+- `init`: Initialize a new vault with structure and config.yaml
 - `process`: Process Obsidian vault to extract tags and add metadata (default)
 - `meetings`: Organize meeting notes with standardized naming
 - `notes`: Organize main notes by tags into subfolders
@@ -231,10 +302,39 @@ obsistant backup [OPTIONS] VAULT_PATH
 - `--name TEXT`: Custom backup name (default: timestamp)
 - `-v, --verbose`: Enable verbose output
 
+### Init Command
+
+```bash
+obsistant init [OPTIONS] VAULT_PATH
+```
+
+Initialize a new vault with the recommended structure and configuration.
+
+**Arguments:**
+- `VAULT_PATH`: Path where the vault should be created
+
+**Options:**
+- `--overwrite-config`: Overwrite existing config.yaml if it exists
+- `--skip-folders`: Don't create folder structure, only create config.yaml
+- `-v, --verbose`: Enable verbose output
+
+**Examples:**
+```bash
+# Initialize a new vault
+obsistant init ~/Documents/MyVault
+
+# Initialize with custom options
+obsistant init ~/Documents/MyVault --skip-folders
+obsistant init ~/Documents/MyVault --overwrite-config
+```
+
 ### Examples
 
 #### Quick Start Examples
 ```bash
+# Initialize a new vault
+obsistant init ~/Documents/MyVault
+
 # Preview changes without modifying files
 obsistant ~/Obsidian/Work --dry-run
 
@@ -574,13 +674,32 @@ uv sync --dev
 obsistant/
 ├── obsistant/
 │   ├── __init__.py
-│   ├── cli.py          # Command line interface
-│   └── processor.py    # Core processing logic
-├── tests/
-│   └── test_processor.py
-├── pyproject.toml      # Project configuration
+│   ├── cli.py              # Command line interface
+│   ├── utils.py            # Utility functions
+│   ├── core/               # Core processing functions
+│   │   ├── frontmatter.py  # Frontmatter parsing and merging
+│   │   ├── tags.py         # Tag extraction
+│   │   ├── formatting.py   # Markdown formatting
+│   │   ├── dates.py        # Date parsing and extraction
+│   │   └── file_processing.py  # File processing logic
+│   ├── vault/              # Vault-wide operations
+│   │   ├── processor.py    # Vault processing orchestration
+│   │   └── init.py        # Vault initialization
+│   ├── meetings/           # Meeting-specific operations
+│   │   └── processor.py   # Meeting processing and archiving
+│   ├── notes/              # Notes organization
+│   │   └── processor.py   # Notes and quick notes processing
+│   ├── backup/             # Backup and restore
+│   │   └── operations.py  # Backup operations
+│   ├── config/             # Configuration management
+│   │   ├── schema.py      # Configuration schema
+│   │   └── loader.py      # Config loading and saving
+│   └── agents/             # Future AI agents integration
+│       └── README.md
+├── tests/                  # Test suite
+├── pyproject.toml          # Project configuration
 ├── README.md
-├── CHANGELOG.md
+├── AGENTS.md               # Agent instructions
 └── LICENSE
 ```
 
