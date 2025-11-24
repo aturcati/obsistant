@@ -3,8 +3,6 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-I desperately needed a tool to optimize and automate my note taking and archiving system. I did not have time to properly code it. So I vibe-coded it.Use at your own risk!
-
 A powerful Python CLI tool for automatically organizing and managing Obsidian vaults with intelligent tag extraction, file organization, and frontmatter management.
 
 ## Features
@@ -19,6 +17,11 @@ A powerful Python CLI tool for automatically organizing and managing Obsidian va
 - **📝 Frontmatter Management**: Intelligent creation and modification date handling
 - **🔗 Meeting Transcript Links**: Extracts meeting transcript URLs from "Chat with meeting transcript:" text
 - **✨ Markdown Formatting**: Optional standardized markdown formatting using `mdformat`
+
+## Updates and Changelog
+
+- July 2025: I desperately needed a tool to optimize and automate my note taking and archiving system. I did not have time to properly code it. So I vibe-coded it. Use at your own risk!
+- November 2025: I actually wanted to maintain the code, so I had to go through a lot of opinionated refactoring. Now I am a bit more sure about the code quality, but still use at your own risk!
 
 ## Installation
 

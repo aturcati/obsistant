@@ -8,6 +8,7 @@ from typing import Any
 
 import click
 
+from . import __version__
 from .backup import clear_backups as clear_backups_func
 from .backup import create_vault_backup
 from .backup import restore_files as restore_files_func
@@ -113,6 +114,7 @@ def get_config_or_default(
 
 
 @click.group(cls=DefaultCommandGroup, default_command="process")
+@click.version_option(version=__version__, prog_name="obsistant")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Process Obsidian vault to extract tags and add metadata.
