@@ -27,7 +27,7 @@ def clear_backups(vault_root: Path) -> int:
             backup_file.unlink()
             deleted_count += 1
     for backup_dir in sorted(
-        backup_root.rglob("*"), key=lambda x: str(x), reverse=True
+        backup_root.rglob("*"), key=str, reverse=True
     ):
         if backup_dir.is_dir() and not any(backup_dir.iterdir()):
             backup_dir.rmdir()
