@@ -4,22 +4,58 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import click
 
-from .processor import (
-    clear_backups as clear_backups_func,
-)
-from .processor import (
-    create_vault_backup,
-    process_meetings_folder,
-    process_notes_folder,
-    process_quick_notes_folder,
-    process_vault,
-)
-from .processor import (
-    restore_files as restore_files_func,
-)
+from . import __version__
+from .backup import clear_backups as clear_backups_func
+from .backup import create_vault_backup
+from .backup import restore_files as restore_files_func
+from .config import load_config
+from .meetings import process_meetings_folder
+from .notes import process_notes_folder, process_quick_notes_folder
+from .vault import init_vault, process_vault
+
+
+class DefaultCommandGroup(click.Group):
+    """Group that falls back to a default command when none is provided."""
+
+    def __init__(
+        self,
+        *args: Any,
+        default_command: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.default_command = default_command
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, Any, list[str]]:
+        if not args and self.default_command:
+            cmd = self.get_command(ctx, self.default_command)
+            if cmd is None:
+                raise click.UsageError(
+                    f"Default command '{self.default_command}' not found."
+                )
+            return self.default_command, cmd, args
+
+        if args:
+            cmd_name = args[0]
+            cmd = self.get_command(ctx, cmd_name)
+            if cmd is not None:
+                return cmd_name, cmd, args[1:]
+
+        if self.default_command:
+            cmd = self.get_command(ctx, self.default_command)
+            if cmd is None:
+                raise click.UsageError(
+                    f"Default command '{self.default_command}' not found."
+                )
+            return self.default_command, cmd, args
+        result: tuple[str | None, Any, list[str]] = super().resolve_command(ctx, args)
+        return result
 
 
 def setup_logger(verbose: bool = False) -> logging.Logger:
@@ -36,7 +72,49 @@ def setup_logger(verbose: bool = False) -> logging.Logger:
     return logger
 
 
-@click.group()
+def get_config_or_default(
+    vault_path: Path, **kwargs: Any
+) -> tuple[Any, dict[str, Any]]:
+    """Load config from vault and merge with CLI arguments.
+
+    CLI arguments override config values. If config doesn't exist, uses defaults.
+
+    Args:
+        vault_path: Path to the vault root.
+        **kwargs: CLI argument values that override config.
+
+    Returns:
+        Tuple of (config object, dict of effective values).
+    """
+    config = load_config(vault_path)
+    effective: dict[str, Any] = {}
+
+    # Backup extension: CLI arg or config or default
+    effective["backup_ext"] = kwargs.get("backup_ext") or (
+        config.processing.backup_ext if config else ".bak"
+    )
+
+    # Folder names: CLI arg or config or defaults
+    if config:
+        effective["meetings_folder"] = (
+            kwargs.get("meetings_folder") or config.vault.meetings
+        )
+        effective["notes_folder"] = kwargs.get("notes_folder") or config.vault.notes
+        effective["quick_notes_folder"] = (
+            kwargs.get("quick_notes_folder") or config.vault.quick_notes
+        )
+    else:
+        effective["meetings_folder"] = kwargs.get("meetings_folder") or "10-Meetings"
+        effective["notes_folder"] = kwargs.get("notes_folder") or "20-Notes"
+        effective["quick_notes_folder"] = (
+            kwargs.get("quick_notes_folder") or "00-Quick Notes"
+        )
+
+    return config, effective
+
+
+@click.group(cls=DefaultCommandGroup, default_command="process")
+@click.version_option(version=__version__, prog_name="obsistant")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Process Obsidian vault to extract tags and add metadata.
@@ -136,13 +214,15 @@ def process(
             logger.info(f"Processing vault at {vault_path}")
 
     try:
+        config, effective = get_config_or_default(vault_path, backup_ext=backup_ext)
         process_vault(
             root=str(vault_path),
             dry_run=dry_run,
-            backup_ext=backup_ext,
+            backup_ext=effective["backup_ext"],
             logger=logger,
             format_md=format_markdown,
             specific_file=specific_file,
+            config=config,
         )
         logger.info("Processing complete!")
     except Exception as e:
@@ -209,13 +289,17 @@ def meetings(
         )
 
     try:
+        config, effective = get_config_or_default(
+            vault_path, meetings_folder=meetings_folder, backup_ext=backup_ext
+        )
         process_meetings_folder(
             vault_root=vault_path,
-            meetings_folder=meetings_folder,
+            meetings_folder=effective["meetings_folder"],
             dry_run=dry_run,
-            backup_ext=backup_ext,
+            backup_ext=effective["backup_ext"],
             logger=logger,
             format_md=format_markdown,
+            config=config,
         )
         logger.info("Meetings folder processing complete!")
     except Exception as e:
@@ -306,13 +390,17 @@ def notes(
         logger.info(f"Processing notes folder '{notes_folder}' in vault {vault_path}")
 
     try:
+        config, effective = get_config_or_default(
+            vault_path, notes_folder=notes_folder, backup_ext=backup_ext
+        )
         process_notes_folder(
             vault_root=vault_path,
-            notes_folder=notes_folder,
+            notes_folder=effective["notes_folder"],
             dry_run=dry_run,
-            backup_ext=backup_ext,
+            backup_ext=effective["backup_ext"],
             logger=logger,
             format_md=format_markdown,
+            config=config,
         )
         logger.info("Notes folder processing complete!")
     except Exception as e:
@@ -389,15 +477,23 @@ def quick_notes(
         )
 
     try:
-        process_quick_notes_folder(
-            vault_root=vault_path,
+        config, effective = get_config_or_default(
+            vault_path,
             notes_folder=notes_folder,
             quick_notes_folder=quick_notes_folder,
-            dry_run=dry_run,
-            backup_ext=backup_ext,
-            logger=logger,
             meetings_folder=meetings_folder,
+            backup_ext=backup_ext,
+        )
+        process_quick_notes_folder(
+            vault_root=vault_path,
+            notes_folder=effective["notes_folder"],
+            quick_notes_folder=effective["quick_notes_folder"],
+            dry_run=dry_run,
+            backup_ext=effective["backup_ext"],
+            logger=logger,
+            meetings_folder=effective["meetings_folder"],
             format_md=format_markdown,
+            config=config,
         )
         logger.info("Quick notes processing complete!")
     except Exception as e:
@@ -481,7 +577,10 @@ def restore(
                     f"File {specific_file} is not within vault {vault_path}"
                 ) from e
 
-        restored_count = restore_files_func(vault_path, specific_file, backup_ext)
+        config, effective = get_config_or_default(vault_path, backup_ext=backup_ext)
+        restored_count = restore_files_func(
+            vault_path, specific_file, effective["backup_ext"]
+        )
         if restored_count > 0:
             if specific_file:
                 logger.info(f"Restored {specific_file} from backup")
@@ -496,6 +595,56 @@ def restore(
                 logger.info(f"No backup files found for vault {vault_path}")
     except Exception as e:
         logger.error(f"Error restoring files: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option(
+    "--overwrite-config",
+    is_flag=True,
+    help="Overwrite existing config.yaml if it exists",
+)
+@click.option(
+    "--skip-folders",
+    is_flag=True,
+    help="Don't create folder structure, only create config.yaml",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def init(
+    vault_path: Path,
+    overwrite_config: bool,
+    skip_folders: bool,
+    verbose: bool,
+) -> None:
+    """Initialize a new vault with directory structure and config.yaml.
+
+    VAULT_PATH: Path where the vault should be created
+
+    This command will:
+    - Create the recommended vault folder structure
+    - Create a config.yaml file with default configuration values
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        init_vault(
+            vault_path=vault_path,
+            overwrite_config=overwrite_config,
+            skip_folders=skip_folders,
+        )
+        logger.info(f"Vault initialized at {vault_path}")
+        logger.info("Created config.yaml with default values")
+        if not skip_folders:
+            logger.info("Created recommended folder structure")
+    except FileExistsError as e:
+        logger.error(str(e))
+        raise click.ClickException(str(e)) from e
+    except Exception as e:
+        logger.error(f"Error initializing vault: {e}")
         raise click.ClickException(str(e)) from e
 
 

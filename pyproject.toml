@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "obsistant"
-version = "0.1.1"
+version = "0.1.2"
 description = "CLI tool to extract #tags from markdown content and add them to YAML frontmatter in Obsidian vaults."
 authors = [{name = "Andrea Turcati"}]
 readme = "README.md"
@@ -39,8 +39,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
-    "mypy>=1.0.0",
-    "types-PyYAML>=6.0.0",
+    "ty>=0.0.1a27",
     "pre-commit>=3.0.0",
 ]
 formatting = [
@@ -87,30 +86,8 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["obsistant"]
 
-# MyPy configuration
-[tool.mypy]
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-
-[[tool.mypy.overrides]]
-module = "obsistant.cli"
-disallow_untyped_decorators = false
+# Ty configuration
+[tool.ty]
 
 # Pytest configuration
 [tool.pytest.ini_options]

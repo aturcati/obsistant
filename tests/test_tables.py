@@ -2,7 +2,7 @@
 
 import unittest.mock
 
-from obsistant.processor import format_markdown
+from obsistant.core import format_markdown
 
 # Test fixtures
 RAW_TABLE_MD = """# Test Table
@@ -42,10 +42,10 @@ class TestTableFormatting:
         """
         # Mock mdformat to work properly and return the expected formatted result
         with unittest.mock.patch(
-            "obsistant.processor.mdformat.text", return_value=CORRECT_FORMATTED_MD
+            "obsistant.core.formatting.mdformat.text", return_value=CORRECT_FORMATTED_MD
         ):
             with unittest.mock.patch(
-                "obsistant.processor._clean_list_blank_lines",
+                "obsistant.core.formatting._clean_list_blank_lines",
                 return_value=CORRECT_FORMATTED_MD,
             ):
                 result = format_markdown(RAW_TABLE_MD)
@@ -56,12 +56,16 @@ class TestTableFormatting:
         # Mock the mdformat.text function to raise ValueError on first call (with extensions),
         # then also raise an exception on the fallback (without extensions) to simulate
         # complete plugin failure
-        with unittest.mock.patch("obsistant.processor.mdformat.text") as mock_text:
+        with unittest.mock.patch(
+            "obsistant.core.formatting.mdformat.text"
+        ) as mock_text:
             mock_text.side_effect = [
                 ValueError("nonexistent"),
                 ValueError("no fallback"),
             ]
-            with unittest.mock.patch("obsistant.processor.console.print") as mock_print:
+            with unittest.mock.patch(
+                "obsistant.core.formatting.console.print"
+            ) as mock_print:
                 result = format_markdown(RAW_TABLE_MD)
                 # Should have printed warning
                 mock_print.assert_called_once()
@@ -71,12 +75,16 @@ class TestTableFormatting:
     def test_format_markdown_detects_table_correctly(self) -> None:
         """Test that the table detection regex works correctly."""
         # This verifies the table detection pattern works
-        with unittest.mock.patch("obsistant.processor.mdformat.text") as mock_text:
+        with unittest.mock.patch(
+            "obsistant.core.formatting.mdformat.text"
+        ) as mock_text:
             mock_text.side_effect = [
                 ValueError("nonexistent"),
                 ValueError("no fallback"),
             ]
-            with unittest.mock.patch("obsistant.processor.console.print") as mock_print:
+            with unittest.mock.patch(
+                "obsistant.core.formatting.console.print"
+            ) as mock_print:
                 result = format_markdown(RAW_TABLE_MD)
 
                 # Should have called print with warning about missing plugin
@@ -101,7 +109,9 @@ Some more text.
 """
 
         # Mock mdformat to simulate plugin unavailable, but should still work for non-table content
-        with unittest.mock.patch("obsistant.processor.mdformat.text") as mock_text:
+        with unittest.mock.patch(
+            "obsistant.core.formatting.mdformat.text"
+        ) as mock_text:
             # First call raises ImportError (simulating missing gfm plugin)
             # Second call in fallback should work normally
             mock_text.side_effect = [
@@ -110,7 +120,7 @@ Some more text.
             ]
 
             with unittest.mock.patch(
-                "obsistant.processor._clean_list_blank_lines",
+                "obsistant.core.formatting._clean_list_blank_lines",
                 return_value=text_without_table,
             ):
                 result = format_markdown(text_without_table)
