@@ -411,3 +411,37 @@ Final paragraph.
         # Just ensure it doesn't crash and produces valid markdown
         assert isinstance(result, str)
         assert len(result.strip()) > 0
+
+    def test_user_reported_bullet_list_formatting_issue(self) -> None:
+        """Test the exact user-reported case with blank lines between bullet points."""
+        input_text = """- Cristiano completed calculations, planning update meeting
+
+- Implementation timeline challenge: before year-end vs January
+
+- Strategic considerations for dashboard implementation:
+
+    - Marketing product approach - more time investment for long-term stability
+
+    - Quick solution approach - faster but requires future maintenance"""
+        expected = """- Cristiano completed calculations, planning update meeting
+- Implementation timeline challenge: before year-end vs January
+- Strategic considerations for dashboard implementation:
+  - Marketing product approach - more time investment for long-term stability
+  - Quick solution approach - faster but requires future maintenance"""
+        result = format_markdown(input_text)
+        # Check that there are no blank lines between list items
+        lines = result.split("\n")
+        for i in range(len(lines) - 1):
+            if lines[i].strip() == "":
+                # Check if this blank line is between two list items
+                prev_line = lines[i - 1] if i > 0 else ""
+                next_line = lines[i + 1] if i < len(lines) - 1 else ""
+                # If both previous and next lines start with '-', there should be no blank line
+                if prev_line.strip().startswith("-") and next_line.strip().startswith(
+                    "-"
+                ):
+                    # This is a bug - blank line between list items
+                    raise AssertionError(
+                        f"Found blank line between list items at line {i + 1}"
+                    )
+        assert result.strip() == expected.strip()

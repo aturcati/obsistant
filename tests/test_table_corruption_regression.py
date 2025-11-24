@@ -1,8 +1,9 @@
 """Regression test for table corruption bug."""
 
-import logging
 import tempfile
 from pathlib import Path
+
+from loguru import logger
 
 from obsistant.vault import process_vault
 
@@ -37,7 +38,7 @@ This should be properly formatted as a table."""
             root=str(temp_path),
             dry_run=False,
             backup_ext=".bak",
-            logger=logging.getLogger(),
+            logger=logger,
             format_md=True,
             specific_file=test_file,
         )

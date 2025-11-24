@@ -241,8 +241,8 @@ def _should_remove_blank_line_between_lists(
 
     Remove blank lines when:
     - Both items are unordered at the same indent level (sibling unordered items)
+    - Both items are unordered and nested (parent to child, child to parent)
     - Both items are the same type and nested appropriately
-    - Going from child back to parent within unordered lists
 
     Preserve blank lines when:
     - Mixing ordered and unordered list types (for readability)
@@ -262,26 +262,24 @@ def _should_remove_blank_line_between_lists(
     prev_type = prev_list_info["type"]
     next_type = next_list_info["type"]
 
-    # Same indent level - only remove blank line for same list types
-    if prev_indent == next_indent:
-        # Only remove blank lines between unordered list items
-        # Keep blank lines between ordered items or mixed types for readability
-        return bool(prev_type == "unordered" and next_type == "unordered")
+    # For unordered lists, always remove blank lines between items
+    # regardless of nesting level (as long as they're related)
+    if prev_type == "unordered" and next_type == "unordered":
+        # Same indent level - always remove blank line
+        if prev_indent == next_indent:
+            return True
 
-    # Next item is indented more than the previous (child of parent)
-    # Remove blank line only for unordered parent to unordered child
-    if next_indent > prev_indent:
-        return bool(prev_type == "unordered" and next_type == "unordered")
+        # Next item is indented more (child of parent) - remove blank line
+        if next_indent > prev_indent:
+            return True
 
-    # Next item is indented less than the previous (going back to parent level)
-    # Remove blank line only for unordered lists within reasonable indent changes
-    if next_indent < prev_indent:
-        # Only remove for unordered lists
-        if prev_type == "unordered" and next_type == "unordered":
-            # If the difference is reasonable (typically 2-5 spaces per level)
+        # Next item is indented less (going back to parent level)
+        # Remove blank line if the indent difference is reasonable
+        if next_indent < prev_indent:
             indent_diff = prev_indent - next_indent
-            # Allow going back 1-3 levels without blank line
-            if indent_diff <= 5:  # Reasonable parent level transition
+            # Allow going back reasonable levels (typically 2-4 spaces per level)
+            # This handles cases like going from indent 4 back to indent 0 or 2
+            if indent_diff <= 8:  # Reasonable parent level transition (up to ~2 levels)
                 return True
 
     # Keep blank line for other cases (mixed types, new sections, etc.)

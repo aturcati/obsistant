@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import logging
+import sys
 from pathlib import Path
 from typing import Any
 
 import click
+from loguru import logger
 
 from . import __version__
 from .backup import clear_backups as clear_backups_func
@@ -58,16 +59,18 @@ class DefaultCommandGroup(click.Group):
         return result
 
 
-def setup_logger(verbose: bool = False) -> logging.Logger:
+def setup_logger(verbose: bool = False) -> Any:
     """Set up logger with appropriate level."""
-    logger = logging.getLogger("obsistant")
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    # Remove default handler
+    logger.remove()
 
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter("%(levelname)s: %(message)s")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+    # Add custom handler with format matching previous behavior
+    # Loguru format: {level} gives uppercase level name (INFO, DEBUG, etc.)
+    logger.add(
+        sys.stderr,
+        format="{level}: {message}",
+        level="DEBUG" if verbose else "INFO",
+    )
 
     return logger
 

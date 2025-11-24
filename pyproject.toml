@@ -29,6 +29,7 @@ classifiers = [
 # Core dependencies - minimal and focused
 dependencies = [
     "click>=8.1.0",
+    "loguru>=0.7.0",
     "mdformat>=0.7.22",
     "pyyaml>=6.0",
     "rich>=13.0.0",
