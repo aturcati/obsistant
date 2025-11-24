@@ -8,7 +8,7 @@ version = "0.1.3"
 description = "CLI tool to extract #tags from markdown content and add them to YAML frontmatter in Obsidian vaults."
 authors = [{name = "Andrea Turcati"}]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 keywords = ["obsidian", "markdown", "tags", "frontmatter", "yaml"]
 classifiers = [
@@ -29,6 +29,16 @@ classifiers = [
 # Core dependencies - minimal and focused
 dependencies = [
     "click>=8.1.0",
+    "crewai>=1.5.0",
+    "crewai-tools>=1.5.0",
+    "google-api-core>=2.11.0",
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.23.0",
+    "google-auth-httplib2>=0.1.1",
+    "google-auth-oauthlib>=1.1.0",
+    "langchain>=1.1.0",
+    "langchain-community>=0.4.1",
+    "langchain-google-community[calendar]>=3.0.1",
     "loguru>=0.7.0",
     "mdformat>=0.7.22",
     "pyyaml>=6.0",
@@ -113,3 +123,8 @@ exclude_lines = [
 ]
 show_missing = true
 skip_covered = true
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+]

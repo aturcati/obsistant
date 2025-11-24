@@ -1,0 +1,15 @@
+get_next_week_events_task:
+  description: >
+    Get the events for the next week in the user's calendar. Today is {today}.
+  expected_output: >
+    A list of events for the next week in the user's calendar. Return the list in a JSON format. The JSON should have the following fields: title,date, start_time, end_time, attendees, location, description.
+
+summarize_events_task:
+  description: >
+    Summarize the events for the next week in the user's calendar in a clear and concise manner. The events are provided in a JSON format. The JSON should have the following fields: date, start_time, end_time, attendees, location, description.
+  expected_output: >
+    A clear and concise summary of the events for the next week in the user's calendar. Return the summary in a markdown list format. The summary should be in the following format:
+    # Events for the next week ({today})
+    - 1) **Event 1:** <event_1_summary>
+    - 2) **Event 2:** <event_2_summary>
+    - ...

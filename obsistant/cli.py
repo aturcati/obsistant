@@ -10,6 +10,7 @@ import click
 from loguru import logger
 
 from . import __version__
+from .agents import calendar_kickoff
 from .backup import clear_backups as clear_backups_func
 from .backup import create_vault_backup
 from .backup import restore_files as restore_files_func
@@ -648,6 +649,37 @@ def init(
         raise click.ClickException(str(e)) from e
     except Exception as e:
         logger.error(f"Error initializing vault: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def calendar(vault_path: Path, verbose: bool) -> None:
+    """Run the CrewAI calendar flow to generate weekly events summary.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will:
+    - Fetch next week's calendar events
+    - Generate a summary of upcoming events
+    - Save the summary to Weekly Summaries folder in the meetings directory
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        config, effective = get_config_or_default(vault_path)
+        meetings_folder = effective["meetings_folder"]
+
+        logger.info(f"Running calendar flow for vault at {vault_path}...")
+        calendar_kickoff(vault_path=vault_path, meetings_folder=meetings_folder)
+        logger.info("Calendar flow completed successfully!")
+        logger.info(f"Summary saved to {meetings_folder}/Weekly Summaries/")
+    except Exception as e:
+        logger.error(f"Error running calendar flow: {e}")
         raise click.ClickException(str(e)) from e
 
 

@@ -134,3 +134,8 @@ dmypy.json
 
 # Dev folders
 dev/
+
+# Credentials
+.o365_token_authorization.txt
+credentials.json
+token.json
