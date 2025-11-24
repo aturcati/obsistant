@@ -25,7 +25,7 @@ test-coverage:
 lint:
     # Run linting
     uv run ruff check .
-    uv run mypy obsistant
+    uv run ty check obsistant
 
 format:
     # Format code
@@ -45,7 +45,7 @@ clean:
     rm -rf .pytest_cache/
     rm -rf .coverage
     rm -rf htmlcov/
-    rm -rf .mypy_cache/
+    rm -rf .ty_cache/
     rm -rf .ruff_cache/
     find . -type d -name __pycache__ -exec rm -rf {} +
     find . -type f -name "*.pyc" -delete
