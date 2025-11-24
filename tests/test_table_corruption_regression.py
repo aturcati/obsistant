@@ -4,7 +4,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from obsistant.processor import process_vault
+from obsistant.vault import process_vault
 
 
 def test_table_corruption_regression() -> None:

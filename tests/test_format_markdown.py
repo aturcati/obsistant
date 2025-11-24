@@ -1,6 +1,6 @@
 """Tests for markdown formatting functionality, specifically bullet-list blank-line handling."""
 
-from obsistant.processor import format_markdown
+from obsistant.core import format_markdown
 
 
 class TestFormatMarkdownBulletLists:

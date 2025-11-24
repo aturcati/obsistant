@@ -4,13 +4,13 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from obsistant.processor import (
-    _find_target_folder_for_tags,
-    _generate_meeting_filename,
-    _move_file_to_folder,
+from obsistant.backup import (
     clear_backups,
     create_backup_path,
     create_vault_backup,
+    restore_files,
+)
+from obsistant.core import (
     extract_date_from_body,
     extract_granola_link,
     extract_tags,
@@ -19,12 +19,13 @@ from obsistant.processor import (
     merge_frontmatter,
     parse_date_string,
     process_file,
-    process_vault,
     render_frontmatter,
-    restore_files,
     split_frontmatter,
     walk_markdown_files,
 )
+from obsistant.meetings.processor import _generate_meeting_filename
+from obsistant.notes.processor import _find_target_folder_for_tags, _move_file_to_folder
+from obsistant.vault import process_vault
 
 
 def read_fixture(filename: str) -> str:
