@@ -15,7 +15,7 @@ from obsistant.core.frontmatter import render_frontmatter
 class CalendarState(BaseModel):
     today: str = datetime.now().strftime("%Y-%m-%d")
     summary: str = ""
-    vault_path: Path | None = None
+    vault_path: str | None = None
     meetings_folder: str = "10-Meetings"
 
 
@@ -23,7 +23,13 @@ class CalendarFlow(Flow[CalendarState]):
     @start()
     def get_next_week_events(self):
         print("Getting next week events")
-        crew_output = CalendarCrew().crew().kickoff(inputs={"today": self.state.today})
+        crew_output = (
+            CalendarCrew()
+            .crew()
+            .kickoff(
+                inputs={"today": self.state.today, "vault_path": self.state.vault_path}
+            )
+        )
         self.state.summary = crew_output.raw if crew_output.raw else ""
 
     @listen(get_next_week_events)
@@ -78,17 +84,19 @@ class CalendarFlow(Flow[CalendarState]):
             self.state.summary = content
 
 
-def kickoff(vault_path: Path | None = None, meetings_folder: str = "10-Meetings"):
+def kickoff(vault_path: Path | str | None = None, meetings_folder: str = "10-Meetings"):
     """Kickoff the calendar flow.
 
     Args:
-        vault_path: Path to the Obsidian vault directory.
+        vault_path: Path to the Obsidian vault directory (can be Path or str).
         meetings_folder: Name of the meetings folder (default: "10-Meetings").
     """
     calendar_flow = CalendarFlow()
-    calendar_flow.state.vault_path = vault_path
-    calendar_flow.state.meetings_folder = meetings_folder
-    calendar_flow.kickoff()
+    # Convert Path to string for CrewAI compatibility
+    vault_path_str = str(vault_path) if vault_path else None
+    calendar_flow.kickoff(
+        inputs={"vault_path": vault_path_str, "meetings_folder": meetings_folder}
+    )
 
 
 def plot():

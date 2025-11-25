@@ -675,7 +675,7 @@ def calendar(vault_path: Path, verbose: bool) -> None:
         meetings_folder = effective["meetings_folder"]
 
         logger.info(f"Running calendar flow for vault at {vault_path}...")
-        calendar_kickoff(vault_path=vault_path, meetings_folder=meetings_folder)
+        calendar_kickoff(vault_path=str(vault_path), meetings_folder=meetings_folder)
         logger.info("Calendar flow completed successfully!")
         logger.info(f"Summary saved to {meetings_folder}/Weekly Summaries/")
     except Exception as e:

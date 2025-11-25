@@ -8,6 +8,8 @@ from google.oauth2.credentials import Credentials
 from langchain_google_community import CalendarToolkit
 from pydantic import BaseModel, Field
 
+from obsistant.config.loader import load_config
+
 
 def next_week_range(today: datetime):
     now = today
@@ -127,12 +129,15 @@ class GetNextWeekEventsInput(BaseModel):
     today: str = Field(
         ..., description="The date in the format YYYY-MM-DD as a string."
     )
+    vault_path: str = Field(
+        ..., description="The path to the Obsidian vault directory."
+    )
 
 
 class GetNextWeekEvents(BaseTool):
     name: str = "get_next_week_events"
     description: str = """
-This is a tool to get the events in the user's calendar for the next week. As input, you should pass the date in the format YYYY-MM-DD as a string. As output, you will receive a list of events in the format of a JSON string. The objects will have the following properties:
+This is a tool to get the events in the user's calendar for the next week. As input, you should pass the date in the format YYYY-MM-DD as a string and the vault_path also as a string. The vault_path is the path to the Obsidian vault directory and it is necessary to access the config.yaml file necessary to get the calendar IDs. As output, you will receive a list of events in the format of a JSON string. The objects will have the following properties:
     {
         "id": "...",
         "htmlLink": "...",
@@ -146,7 +151,7 @@ This is a tool to get the events in the user's calendar for the next week. As in
 
     args_schema: type[BaseModel] = GetNextWeekEventsInput
 
-    def _run(self, today: str):
+    def _run(self, today: str, vault_path: str | None = None):
         today_datetime = datetime.strptime(today, "%Y-%m-%d")
         min_datetime, max_datetime = next_week_range(today_datetime)
 
@@ -162,10 +167,8 @@ This is a tool to get the events in the user's calendar for the next week. As in
         cal_dict = get_info.invoke({})
         cal_list = json.loads(cal_dict)
 
-        target_ids = [
-            "i32gqcmiqkfeduob47b6iueh1ou8a70t@import.calendar.google.com",
-            "60b41fmboh551j37o7beq62uac@group.calendar.google.com",
-        ]
+        config = load_config(Path(vault_path))
+        target_ids = list(config.calendar.calendars.values()) if config else []
         target_calendar_list = [c for c in cal_list if c["id"] in target_ids]
 
         calendars_info = json.dumps(target_calendar_list)  # back to JSON string

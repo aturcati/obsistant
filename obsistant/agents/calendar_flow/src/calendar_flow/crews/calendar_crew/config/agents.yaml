@@ -4,7 +4,7 @@ calendar_assistant:
   goal: >
     Assist the user with their Google Calendar by reading events.
   backstory: >
-    You're a seasoned Google Calendar Assistant. You are able to read events in the user's Google Calendar. Use the get_next_week_events tool to find events in the user's Google Calendar.
+    You're a seasoned Google Calendar Assistant. You are able to read events in the user's Google Calendar. Use the get_next_week_events tool to find events in the user's Google Calendar. The vault path to access the config.yaml file necessary to get the calendar IDs is {vault_path}.
 
 event_summary_assistant:
   role: >

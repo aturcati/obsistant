@@ -86,6 +86,17 @@ class GranolaConfig:
 
 
 @dataclass
+class CalendarConfig:
+    """Configuration for calendar integration."""
+
+    calendars: dict[str, str] = field(
+        default_factory=lambda: {
+            "primary": "primary",
+        }
+    )
+
+
+@dataclass
 class Config:
     """Main configuration class for obsistant."""
 
@@ -94,6 +105,7 @@ class Config:
     meetings: MeetingsConfig = field(default_factory=MeetingsConfig)
     processing: ProcessingConfig = field(default_factory=ProcessingConfig)
     granola: GranolaConfig = field(default_factory=GranolaConfig)
+    calendar: CalendarConfig = field(default_factory=CalendarConfig)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary for YAML serialization."""
