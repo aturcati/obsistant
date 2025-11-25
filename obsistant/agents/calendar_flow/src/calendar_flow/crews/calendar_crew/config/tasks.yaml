@@ -1,12 +1,20 @@
 get_next_week_events_task:
   description: >
-    Get the events for the next week in the user's calendar. Today is {today}.
+    Get the events for the next week in the user's calendar. Today is {today}. The vault path to access the config.yaml file necessary to get the calendar IDs is {vault_path}.
   expected_output: >
     A list of events for the next week in the user's calendar. Return the list in a JSON format. The JSON should have the following fields: title,date, start_time, end_time, attendees, location, description.
 
+research_concerts_task:
+  description: >
+    Research the concerts for the next week in the user's calendar. Ignore private events. Use the name of the event to search for the concert on the internet.
+    The events are provided in a JSON format. The JSON should have the following fields: date, start_time, end_time, attendees, location, description. If no location is provided, assume the concert is in Munich. Collect information about the artist, the venue, and the price of the tickets. Return the additional link to the artist's spotify and tidal pages.
+  expected_output: >
+    A list of concerts for the next week in the user's calendar. Return the list in a JSON format. The JSON should have the following fields: title, date, start_time, end_time, attendees, location, description, artist, venue, price, spotify_link, tidal_link.
+
 summarize_events_task:
   description: >
-    Summarize the events for the next week in the user's calendar in a clear and concise manner. The events are provided in a JSON format. The JSON should have the following fields: date, start_time, end_time, attendees, location, description.
+    Summarize the events for the next week in the user's calendar in a clear and concise manner. The events are private events, work events or concerts. The concerts have additional information that should be included in the summary.
+    The events are provided in a JSON format. The JSON should have the following fields: date, start_time, end_time, attendees, location, description, and optional fields: artist, venue, price, spotify_link, tidal_link.
   expected_output: >
     A clear and concise summary of the events for the next week in the user's calendar. Return the summary in a markdown list format. The summary should be in the following format:
     # Events for the next week ({today})

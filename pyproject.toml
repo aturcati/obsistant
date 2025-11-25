@@ -31,6 +31,7 @@ dependencies = [
     "click>=8.1.0",
     "crewai>=1.5.0",
     "crewai-tools>=1.5.0",
+    "exa-py>=2.0.1",
     "google-api-core>=2.11.0",
     "google-api-python-client>=2.0.0",
     "google-auth>=2.23.0",

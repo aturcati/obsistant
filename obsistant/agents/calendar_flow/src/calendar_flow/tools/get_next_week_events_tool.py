@@ -152,6 +152,9 @@ This is a tool to get the events in the user's calendar for the next week. As in
     args_schema: type[BaseModel] = GetNextWeekEventsInput
 
     def _run(self, today: str, vault_path: str | None = None):
+        if not vault_path:
+            raise ValueError("vault_path is required to load calendar configuration")
+
         today_datetime = datetime.strptime(today, "%Y-%m-%d")
         min_datetime, max_datetime = next_week_range(today_datetime)
 
@@ -168,7 +171,10 @@ This is a tool to get the events in the user's calendar for the next week. As in
         cal_list = json.loads(cal_dict)
 
         config = load_config(Path(vault_path))
-        target_ids = list(config.calendar.calendars.values()) if config else []
+        if not config:
+            raise ValueError(f"Could not load config.yaml from vault at {vault_path}")
+
+        target_ids = list(config.calendar.calendars.values())
         target_calendar_list = [c for c in cal_list if c["id"] in target_ids]
 
         calendars_info = json.dumps(target_calendar_list)  # back to JSON string

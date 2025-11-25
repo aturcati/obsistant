@@ -138,6 +138,9 @@ class Config:
             "granola": {
                 "link_pattern": self.granola.link_pattern,
             },
+            "calendar": {
+                "calendars": self.calendar.calendars,
+            },
         }
 
     @classmethod
@@ -148,6 +151,7 @@ class Config:
         meetings_data = data.get("meetings", {})
         processing_data = data.get("processing", {})
         granola_data = data.get("granola", {})
+        calendar_data = data.get("calendar", {})
 
         return cls(
             vault=VaultFoldersConfig(
@@ -205,6 +209,12 @@ class Config:
                 link_pattern=granola_data.get(
                     "link_pattern",
                     r"Chat with meeting transcript:\s*\[([^\]]+)\]\([^\)]+\)",
+                ),
+            ),
+            calendar=CalendarConfig(
+                calendars=calendar_data.get(
+                    "calendars",
+                    {"primary": "primary"},
                 ),
             ),
         )

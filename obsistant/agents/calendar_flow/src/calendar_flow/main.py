@@ -51,16 +51,9 @@ class CalendarFlow(Flow[CalendarState]):
             weekly_summaries_dir = vault_path / meetings_folder / "Weekly Summaries"
             weekly_summaries_dir.mkdir(parents=True, exist_ok=True)
 
-            # Calculate week number (1-52/53) from current date
-            today = datetime.now()
-            # Calculate week number from January 1st
-            jan_1 = datetime(today.year, 1, 1)
-            days_since_jan_1 = (today - jan_1).days
-            week_number = (days_since_jan_1 // 7) + 1
-
             # Create frontmatter
             frontmatter_data = {
-                "created": today.strftime("%Y-%m-%d"),
+                "created": datetime.now().strftime("%Y-%m-%d"),
                 "tags": ["weekly-summary", "meeting"],
             }
             frontmatter = render_frontmatter(frontmatter_data)
@@ -69,7 +62,7 @@ class CalendarFlow(Flow[CalendarState]):
             formatted_content = frontmatter + content
 
             # Save to Weekly Summaries folder with proper filename
-            output_filename = f"Weekly_Meeting_Summary_{week_number}.md"
+            output_filename = "Weekly_Events_Summary.md"
             output_path = weekly_summaries_dir / output_filename
 
             with open(output_path, "w", encoding="utf-8") as f:
