@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from crewai.tools import BaseTool
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from langchain_google_community import CalendarToolkit
 from pydantic import BaseModel, Field
 
 from obsistant.config.loader import load_config
+from obsistant.core.calendar_auth import authenticate_google_calendar
 
 
 def next_week_range(today: datetime):
@@ -22,42 +22,13 @@ def next_week_range(today: datetime):
     return next_monday.strftime(fmt), end.strftime(fmt)
 
 
-def find_credentials_file(filename: str) -> Path | None:
-    """Search for credentials file in common locations.
+def load_google_credentials(vault_path: Path) -> Credentials:
+    """Load and refresh Google OAuth credentials using config paths.
 
-    Searches in:
-    1. Root directory (current working directory) - primary location
-    2. Same directory as this file (fallback)
-    3. User's home directory (fallback)
+    Loads credentials from paths specified in .obsistant/config.yaml.
 
     Args:
-        filename: Name of the file to search for (e.g., "credentials.json")
-
-    Returns:
-        Path to the file if found, None otherwise.
-    """
-    search_paths = [
-        # Root directory (current working directory) - primary location
-        Path.cwd() / filename,
-        # Same directory as this file (fallback)
-        Path(__file__).parent / filename,
-        # User's home directory (fallback)
-        Path.home() / filename,
-    ]
-
-    for path in search_paths:
-        if path.exists() and path.is_file():
-            return path
-
-    return None
-
-
-def load_google_credentials() -> Credentials:
-    """Load and refresh Google OAuth credentials from token.json or credentials.json.
-
-    First attempts to load from token.json. If that fails or doesn't exist,
-    looks for credentials.json to initiate OAuth flow (though OAuth flow
-    requires user interaction, so this is mainly for error messaging).
+        vault_path: Path to the vault root directory.
 
     Returns:
         Valid Credentials object.
@@ -65,62 +36,36 @@ def load_google_credentials() -> Credentials:
     Raises:
         ValueError: If no valid credentials can be found or loaded.
     """
-    scopes = ["https://www.googleapis.com/auth/calendar.readonly"]
-
-    # Try to find token.json first
-    token_path = find_credentials_file("token.json")
-
-    creds = None
-    if token_path and token_path.exists():
-        try:
-            creds = Credentials.from_authorized_user_file(str(token_path), scopes)
-        except Exception:
-            # If loading fails, continue to check for credentials.json
-            creds = None
-
-    # If we have credentials but they're expired, try to refresh
-    if creds and not creds.valid:
-        if creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-                # Save refreshed credentials back to token.json
-                if token_path:
-                    with token_path.open("w") as token_file:
-                        token_file.write(creds.to_json())
-            except Exception:
-                # Refresh failed, will fall through to error handling
-                creds = None
-
-    # If we have valid credentials, return them
-    if creds and creds.valid:
-        return creds
-
-    # If no valid credentials, check for credentials.json for better error message
-    credentials_path = find_credentials_file("credentials.json")
-
-    error_parts = [
-        "No valid Google OAuth credentials found.",
-    ]
-
-    if token_path and token_path.exists():
-        error_parts.append(
-            f"Found token.json at {token_path} but it's invalid or expired."
-        )
-    else:
-        error_parts.append("token.json not found.")
-
-    if credentials_path:
-        error_parts.append(
-            f"Found credentials.json at {credentials_path}. "
-            "You may need to run the OAuth flow to generate token.json."
-        )
-    else:
-        error_parts.append(
-            "credentials.json not found. Please ensure either token.json or "
-            "credentials.json exists in a searchable location."
+    # Load config to get credential paths
+    config = load_config(vault_path)
+    if not config:
+        raise ValueError(
+            f"Could not load .obsistant/config.yaml from vault at {vault_path}. "
+            "Please run 'obsistant init' first."
         )
 
-    raise ValueError(" ".join(error_parts))
+    credentials_path = Path(config.calendar.credentials_path)
+    token_path = Path(config.calendar.token_path)
+
+    # Resolve paths relative to vault_path if not absolute
+    if not credentials_path.is_absolute():
+        credentials_path = vault_path / credentials_path
+    if not token_path.is_absolute():
+        token_path = vault_path / token_path
+
+    # Use authenticate_google_calendar which handles loading, refreshing, and OAuth flow
+    try:
+        return authenticate_google_calendar(vault_path, credentials_path, token_path)
+    except FileNotFoundError as e:
+        raise ValueError(
+            f"credentials.json not found at {credentials_path}. "
+            "Please run 'obsistant calendar-login' to authenticate."
+        ) from e
+    except Exception as e:
+        raise ValueError(
+            f"Failed to load Google credentials: {e}. "
+            "Please run 'obsistant calendar-login' to authenticate."
+        ) from e
 
 
 class GetNextWeekEventsInput(BaseModel):
@@ -137,7 +82,7 @@ class GetNextWeekEventsInput(BaseModel):
 class GetNextWeekEvents(BaseTool):
     name: str = "get_next_week_events"
     description: str = """
-This is a tool to get the events in the user's calendar for the next week. As input, you should pass the date in the format YYYY-MM-DD as a string and the vault_path also as a string. The vault_path is the path to the Obsidian vault directory and it is necessary to access the config.yaml file necessary to get the calendar IDs. As output, you will receive a list of events in the format of a JSON string. The objects will have the following properties:
+This is a tool to get the events in the user's calendar for the next week. As input, you should pass the date in the format YYYY-MM-DD as a string and the vault_path also as a string. The vault_path is the path to the Obsidian vault directory and it is necessary to access the .obsistant/config.yaml file necessary to get the calendar IDs. As output, you will receive a list of events in the format of a JSON string. The objects will have the following properties:
     {
         "id": "...",
         "htmlLink": "...",
@@ -155,12 +100,13 @@ This is a tool to get the events in the user's calendar for the next week. As in
         if not vault_path:
             raise ValueError("vault_path is required to load calendar configuration")
 
+        vault_path_obj = Path(vault_path)
         today_datetime = datetime.strptime(today, "%Y-%m-%d")
         min_datetime, max_datetime = next_week_range(today_datetime)
 
-        # Load and validate Google credentials (CalendarToolkit uses default credentials
-        # from environment, but we validate they exist here for better error messages)
-        _ = load_google_credentials()  # Validates credentials exist
+        # Load and validate Google credentials using config paths
+        # CalendarToolkit uses default credentials from environment, but we validate they exist
+        _ = load_google_credentials(vault_path_obj)
         toolkit = CalendarToolkit()  # type: ignore[call-overload]
         tools = toolkit.get_tools()
 
@@ -172,7 +118,9 @@ This is a tool to get the events in the user's calendar for the next week. As in
 
         config = load_config(Path(vault_path))
         if not config:
-            raise ValueError(f"Could not load config.yaml from vault at {vault_path}")
+            raise ValueError(
+                f"Could not load .obsistant/config.yaml from vault at {vault_path}"
+            )
 
         target_ids = list(config.calendar.calendars.values())
         target_calendar_list = [c for c in cal_list if c["id"] in target_ids]

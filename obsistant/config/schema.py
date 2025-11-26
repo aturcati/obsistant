@@ -94,6 +94,8 @@ class CalendarConfig:
             "primary": "primary",
         }
     )
+    credentials_path: str = ".obsistant/credentials.json"
+    token_path: str = ".obsistant/token.json"
 
 
 @dataclass
@@ -140,6 +142,8 @@ class Config:
             },
             "calendar": {
                 "calendars": self.calendar.calendars,
+                "credentials_path": self.calendar.credentials_path,
+                "token_path": self.calendar.token_path,
             },
         }
 
@@ -215,6 +219,14 @@ class Config:
                 calendars=calendar_data.get(
                     "calendars",
                     {"primary": "primary"},
+                ),
+                credentials_path=calendar_data.get(
+                    "credentials_path",
+                    ".obsistant/credentials.json",
+                ),
+                token_path=calendar_data.get(
+                    "token_path",
+                    ".obsistant/token.json",
                 ),
             ),
         )

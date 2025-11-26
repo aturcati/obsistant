@@ -139,3 +139,5 @@ dev/
 .o365_token_authorization.txt
 credentials.json
 token.json
+.obsistant/credentials.json
+.obsistant/token.json

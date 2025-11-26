@@ -14,7 +14,8 @@ from .agents import calendar_kickoff
 from .backup import clear_backups as clear_backups_func
 from .backup import create_vault_backup
 from .backup import restore_files as restore_files_func
-from .config import load_config
+from .config import load_config, save_config
+from .core.calendar_auth import authenticate_google_calendar
 from .meetings import process_meetings_folder
 from .notes import process_notes_folder, process_quick_notes_folder
 from .vault import init_vault, process_vault
@@ -630,7 +631,8 @@ def init(
 
     This command will:
     - Create the recommended vault folder structure
-    - Create a config.yaml file with default configuration values
+    - Create .obsistant/ folder for utility files
+    - Create .obsistant/config.yaml file with default configuration values
     """
     logger = setup_logger(verbose)
 
@@ -641,7 +643,7 @@ def init(
             skip_folders=skip_folders,
         )
         logger.info(f"Vault initialized at {vault_path}")
-        logger.info("Created config.yaml with default values")
+        logger.info("Created .obsistant/config.yaml with default values")
         if not skip_folders:
             logger.info("Created recommended folder structure")
     except FileExistsError as e:
@@ -649,6 +651,96 @@ def init(
         raise click.ClickException(str(e)) from e
     except Exception as e:
         logger.error(f"Error initializing vault: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="calendar-login")
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def calendar_login(vault_path: Path, verbose: bool) -> None:
+    """Authenticate with Google Calendar API.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will:
+    - Create .obsistant/ folder if it doesn't exist
+    - Look for credentials.json in .obsistant/ (or path from .obsistant/config.yaml)
+    - Run OAuth flow to authenticate with Google Calendar
+    - Save token.json to .obsistant/ (or path from .obsistant/config.yaml)
+    - Update .obsistant/config.yaml with credential paths if not already set
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        # Load or create config
+        config = load_config(vault_path)
+        if config is None:
+            from .config import Config
+
+            config = Config()
+            logger.info("No config.yaml found in .obsistant/, using defaults")
+
+        # Get credential paths from config
+        credentials_path = Path(config.calendar.credentials_path)
+        token_path = Path(config.calendar.token_path)
+
+        # Ensure .obsistant folder exists
+        obsistant_dir = vault_path / ".obsistant"
+        obsistant_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Ensured .obsistant/ folder exists at {obsistant_dir}")
+
+        # Resolve paths relative to vault_path if not absolute
+        if not credentials_path.is_absolute():
+            credentials_path = vault_path / credentials_path
+        if not token_path.is_absolute():
+            token_path = vault_path / token_path
+
+        # Check if credentials.json exists
+        if not credentials_path.exists():
+            logger.error(
+                f"credentials.json not found at {credentials_path}. "
+                "Please place your Google OAuth credentials file there."
+            )
+            raise click.ClickException(
+                f"credentials.json not found at {credentials_path}"
+            )
+
+        logger.info(f"Found credentials.json at {credentials_path}")
+        logger.info("Starting OAuth flow...")
+
+        # Authenticate (will run OAuth flow if needed)
+        creds = authenticate_google_calendar(vault_path, credentials_path, token_path)
+
+        if creds and creds.valid:
+            logger.info(f"Successfully authenticated! Token saved to {token_path}")
+
+            # Update config.yaml if paths are not already set to defaults
+            # (in case user had custom paths, we don't overwrite)
+            if (
+                config.calendar.credentials_path != ".obsistant/credentials.json"
+                or config.calendar.token_path != ".obsistant/token.json"
+            ):
+                logger.info("Updating config.yaml with credential paths...")
+                save_config(config, vault_path)
+            else:
+                # Ensure config.yaml exists with defaults
+                config_path = vault_path / ".obsistant" / "config.yaml"
+                if not config_path.exists():
+                    logger.info("Creating config.yaml with default credential paths...")
+                    save_config(config, vault_path)
+
+            logger.info("Calendar login completed successfully!")
+        else:
+            raise click.ClickException("Authentication failed")
+
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        raise click.ClickException(str(e)) from e
+    except Exception as e:
+        logger.error(f"Error during calendar login: {e}")
         raise click.ClickException(str(e)) from e
 
 
