@@ -6,13 +6,6 @@ from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, agent, crew, task
 from dotenv import find_dotenv, load_dotenv
 
-from obsistant.agents.calendar_flow.src.calendar_flow.crews.models import (
-    CalendarEventsList,
-)
-from obsistant.agents.calendar_flow.src.calendar_flow.tools.get_next_week_events_tool import (
-    GetNextWeekEvents,
-)
-
 load_dotenv(find_dotenv())
 
 if TYPE_CHECKING:
@@ -23,32 +16,34 @@ if TYPE_CHECKING:
 
 
 @CrewBase
-class CalendarCrew:
-    """CalendarCrew crew"""
+class SummaryCrew:
+    """SummaryCrew crew"""
 
     agents: list[BaseAgent]
     tasks: list[Task]
 
     @agent
-    def calendar_assistant(self) -> Agent:
+    def summary_assistant(self) -> Agent:
         return Agent(
-            config=self.agents_config["calendar_assistant"],  # type: ignore[attr-defined]
-            tools=[GetNextWeekEvents()],
+            config=self.agents_config["summary_assistant"],  # type: ignore[attr-defined]
+            tools=[],
             llm=os.getenv("MODEL", "gpt-4o-mini"),
-            max_tokens=4000,
+            max_rpm=150,
+            max_iter=15,
+            max_tokens=6000,
             verbose=True,
         )
 
     @task
-    def get_next_week_events_task(self) -> Task:
+    def prepare_summary(self) -> Task:
         return Task(
-            config=self.tasks_config["get_next_week_events_task"],  # type: ignore[attr-defined]
-            output_pydantic=CalendarEventsList,
+            config=self.tasks_config["prepare_summary"],  # type: ignore[attr-defined]
+            markdown=True,
         )  # type: ignore[call-arg]
 
     @crew
     def crew(self) -> Crew:
-        """Creates the OutlookCrew crew"""
+        """Creates the SummaryCrew crew"""
 
         return Crew(
             agents=self.agents,

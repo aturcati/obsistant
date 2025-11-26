@@ -1,0 +1,69 @@
+create_research_plan:
+  description: |
+    Prepare a research plan to gather all the required information for a concert happening next week (today is {today})
+
+    The event information is provided as a JSON object. The JSON object can have the following fields:
+    - calendar
+    - title
+    - date
+    - start_time
+    - end_time
+    - attendees (optional)
+    - location (optional)
+    - description (optional)
+
+    It is necessary to research the following information:
+      - artist: Artist name
+      - date: Event date
+      - start_time: Event start time
+      - end_time: Event end time
+      - location: Event location
+      - artist_description: Summary of the artist
+      - price: Ticket price
+      - spotify_link: Link to artist's Spotify page
+
+    The concert to research is:
+      {concert}
+  expected_output: >
+    A research plan in markdown format planning the steps necessary to gather the information for the concert.
+  agent: research_planner
+
+research_concert_task:
+  description: >
+    Follow the research plan provided by the research_planner agent to create a research report with all the requested information for the concert. Use websites like Eventim, Songkick, Ticketmaster, etc. to find information about the concert. If you don't find the information, try to find it in other websites like Wikipedia, Google, etc.
+  expected_output: >
+    A research report in markdown format with all the requested information for the concert.
+  agent: concert_researcher
+  context:
+  - create_research_plan
+
+concert_factcheck_task:
+  description: >
+    Check the information gathered from the research report and verify if it is accurate and complete. If it is not, correct it.
+
+    The information of the event is:
+    {concert}
+
+  expected_output: >
+    A research report in markdown format with all the requested and verified information for the concert.
+  agent: concert_factchecker
+  context:
+  - create_research_plan
+  - research_concert_task
+
+concert_research_summary:
+  description: >
+    Extract the information from the research report and convert it into a JSON object.
+  expected_output: >
+    A JSON object with the information for the concert. The JSON object should have the following fields:
+    - artist: Artist name
+    - date: Event date
+    - start_time: Event start time
+    - end_time: Event end time
+    - location: Event location
+    - artist_description: Summary of the artist
+    - price: Ticket price
+    - spotify_link: Link to artist's Spotify page
+  agent: concert_summary_assistant
+  context:
+  - research_concert_task

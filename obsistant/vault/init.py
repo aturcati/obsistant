@@ -31,6 +31,10 @@ def init_vault(
     obsistant_dir = vault_path / ".obsistant"
     obsistant_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create storage directory for CrewAI memory
+    storage_dir = obsistant_dir / "storage"
+    storage_dir.mkdir(parents=True, exist_ok=True)
+
     # Create folder structure
     if not skip_folders:
         folders = [

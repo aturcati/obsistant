@@ -27,9 +27,11 @@ def load_config(vault_root: Path) -> Config | None:
             data = yaml.safe_load(f)
             if data is None:
                 return None
+            # Use from_dict which handles YAML structure transformation and backward compatibility
             return Config.from_dict(data)
-    except (OSError, yaml.YAMLError):
+    except (OSError, yaml.YAMLError, Exception):
         # Log error but don't fail - return None to use defaults
+        # Exception catches Pydantic validation errors
         return None
 
 

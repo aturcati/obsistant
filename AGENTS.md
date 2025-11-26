@@ -21,7 +21,9 @@ obsistant assumes (or strongly favors) a vault layout like:
 
 ```
 Your-Vault/
-├── config.yaml            # Configuration file
+├── .obsistant/
+│   ├── config.yaml        # Configuration file
+│   └── storage/          # CrewAI memory storage
 ├── 00-Quick Notes/
 ├── 10-Meetings/
 │   └── Archive/          # Archived meetings by year
