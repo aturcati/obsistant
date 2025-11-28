@@ -1,6 +1,6 @@
 create_research_plan:
   description: |
-    Prepare a research plan to gather all the required information for a concert happening next week (today is {today})
+    Prepare a concise research plan to gather all the required information for a concert happening next week (today is {today}). The research plan should be a list of steps to be taken to gather the information.
 
     The event information is provided as a JSON object. The JSON object can have the following fields:
     - calendar
@@ -18,9 +18,11 @@ create_research_plan:
       - start_time: Event start time
       - end_time: Event end time
       - location: Event location
-      - artist_description: Summary of the artist
+      - artist_description: Summary of the artist (extensive, but maximum 2 paragraphs)
+      - support_artists: List of support artists
       - price: Ticket price
       - spotify_link: Link to artist's Spotify page
+      - tidal_link: Link to artist's Tidal page
 
     The concert to research is:
       {concert}
@@ -61,9 +63,12 @@ concert_research_summary:
     - start_time: Event start time
     - end_time: Event end time
     - location: Event location
-    - artist_description: Summary of the artist
+    - artist_description: Summary of the artist (extensive, but maximum 2 paragraphs)
+    - support_artists: List of support artists (string with comma separated list)
     - price: Ticket price
     - spotify_link: Link to artist's Spotify page
+    - tidal_link: Link to artist's Tidal page
   agent: concert_summary_assistant
   context:
   - research_concert_task
+  - concert_factcheck_task

@@ -1,10 +1,14 @@
-import os
+import re
 from typing import TYPE_CHECKING
 
 from crewai import Agent, Crew, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
-from crewai.project import CrewBase, agent, crew, task
+from crewai.project import CrewBase, after_kickoff, agent, crew, task
 from dotenv import find_dotenv, load_dotenv
+
+from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
+    create_llm_with_retries,
+)
 
 load_dotenv(find_dotenv())
 
@@ -13,6 +17,15 @@ if TYPE_CHECKING:
 
     agents_config: dict[str, Any]
     tasks_config: dict[str, Any]
+
+
+def strip_markdown_wrapper(text: str) -> str:
+    text = text.strip()
+    # Remove opening ```markdown (only at start)
+    text = re.sub(r"^```markdown\s*\n?", "", text, flags=re.IGNORECASE)
+    # Remove closing ``` (only at end)
+    text = re.sub(r"\n?```$", "", text)
+    return text.strip()
 
 
 @CrewBase
@@ -24,13 +37,13 @@ class SummaryCrew:
 
     @agent
     def summary_assistant(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000)
         return Agent(
             config=self.agents_config["summary_assistant"],  # type: ignore[attr-defined]
             tools=[],
-            llm=os.getenv("MODEL", "gpt-4o-mini"),
-            max_rpm=150,
-            max_iter=15,
-            max_tokens=6000,
+            llm=llm,
+            max_rpm=30,  # Reduced to avoid rate limits (TPM: 30,000 limit)
+            max_iter=10,  # Reduced iterations to limit token usage
             verbose=True,
         )
 
@@ -40,6 +53,16 @@ class SummaryCrew:
             config=self.tasks_config["prepare_summary"],  # type: ignore[attr-defined]
             markdown=True,
         )  # type: ignore[call-arg]
+
+    @after_kickoff
+    def strip_markdown(self, result):
+        try:
+            summary = result if type(result) == str else result.raw  # noqa: E721
+            summary = strip_markdown_wrapper(summary)
+            result.raw = summary
+        except Exception as e:
+            print(f"Error stripping markdown: {e}")
+        return result
 
     @crew
     def crew(self) -> Crew:

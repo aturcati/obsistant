@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING
 
 from crewai import Agent, Crew, Process, Task
@@ -9,6 +8,9 @@ from dotenv import find_dotenv, load_dotenv
 
 from obsistant.agents.calendar_flow.src.calendar_flow.crews.models import (
     ConcertEvent,
+)
+from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
+    create_llm_with_retries,
 )
 
 load_dotenv(find_dotenv())
@@ -29,49 +31,49 @@ class ConcertCrew:
 
     @agent
     def research_planner(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000)
         return Agent(
             config=self.agents_config["research_planner"],  # type: ignore[attr-defined]
             tools=[],
-            llm=os.getenv("MODEL", "gpt-4o-mini"),
-            max_rpm=150,
-            max_iter=15,
-            max_tokens=6000,
+            llm=llm,
+            max_rpm=50,  # Reduced to avoid rate limits
+            max_iter=10,  # Reduced iterations to limit token usage
             verbose=True,
         )
 
     @agent
     def concert_researcher(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000)
         return Agent(
             config=self.agents_config["concert_researcher"],  # type: ignore[attr-defined]
             tools=[ScrapeWebsiteTool(), EXASearchTool(), TavilySearchTool()],
-            llm=os.getenv("MODEL", "gpt-4o-mini"),
-            max_rpm=150,
-            max_iter=15,
-            max_tokens=6000,
+            llm=llm,
+            max_rpm=50,  # Reduced to avoid rate limits
+            max_iter=10,  # Reduced iterations to limit token usage
             verbose=True,
         )
 
     @agent
     def concert_factchecker(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000)
         return Agent(
             config=self.agents_config["concert_factchecker"],  # type: ignore[attr-defined]
             tools=[EXASearchTool()],
-            llm=os.getenv("MODEL", "gpt-4o-mini"),
-            max_rpm=150,
-            max_iter=15,
-            max_tokens=6000,
+            llm=llm,
+            max_rpm=50,  # Reduced to avoid rate limits
+            max_iter=10,  # Reduced iterations to limit token usage
             verbose=True,
         )
 
     @agent
     def concert_summary_assistant(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000)
         return Agent(
             config=self.agents_config["concert_summary_assistant"],  # type: ignore[attr-defined]
             tools=[],
-            llm=os.getenv("MODEL", "gpt-4o-mini"),
-            max_rpm=150,
-            max_iter=15,
-            max_tokens=6000,
+            llm=llm,
+            max_rpm=50,  # Reduced to avoid rate limits
+            max_iter=10,  # Reduced iterations to limit token usage
             verbose=True,
         )
 

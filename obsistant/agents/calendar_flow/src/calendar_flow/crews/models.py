@@ -51,13 +51,16 @@ class ConcertEvent(BaseModel):
     end_time: str | None = Field(None, description="Event end time")
     location: str | None = Field(None, description="Event location")
     artist_description: str | None = Field(None, description="Summary of the artist")
+    support_artists: str | None = Field(None, description="Support artists")
     price: str | None = Field(None, description="Ticket price")
     spotify_link: str | None = Field(None, description="Link to artist's Spotify page")
+    tidal_link: str | None = Field(None, description="Link to artist's Tidal page")
 
     @field_validator(
         "location",
         "price",
         "spotify_link",
+        "tidal_link",
         "artist_description",
         "start_time",
         "end_time",

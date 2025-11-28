@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -62,11 +63,11 @@ class CalendarFlow(Flow[CalendarState]):
             print("No concerts found in events, skipping concert research")
             return
 
-        # Setup CrewAI storage before instantiating crews
         setup_crewai_storage(self.state.vault_path)
 
         concert_infos = []
-        for c in concerts:
+        for i, c in enumerate(concerts):
+            print(f"Researching concert {i + 1}/{len(concerts)}")
             concert_result = (
                 ConcertCrew()
                 .crew()
@@ -75,6 +76,10 @@ class CalendarFlow(Flow[CalendarState]):
                 )
             )
             concert_infos.append(concert_result.pydantic)
+
+            # Add delay between requests to avoid rate limiting (3 seconds per request)
+            if i < len(concerts) - 1:  # Don't delay after the last one
+                time.sleep(3)
 
         self.state.concerts = ConcertEventsList(concerts=concert_infos)
 
@@ -105,6 +110,7 @@ class CalendarFlow(Flow[CalendarState]):
         concerts_json = (
             self.state.concerts.model_dump_json() if self.state.concerts else "[]"
         )
+
         crew_output = (
             SummaryCrew()
             .crew()

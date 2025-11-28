@@ -1,11 +1,16 @@
 prepare_summary:
   description: >
-    Summarize the list of events in a clear, complete but concise report. Divide the report into sections for each type of event.
-    Start with the section of the work events, that are summarized here below in a list of JSON objects:
+    Convert the structured list of events into a clear and complete report. Divide the report into sections for each type of event.
+    Start with the section of the work events, that are given as a list of JSON objects:
     {work_events}
 
-    Then continue with the section of the concerts, that are summarized here below in a list of JSON objects:
+    Then continue with the section of the concerts, that are given as a list of JSON objects:
     {concerts}
+
+    Additional rules:
+    - Include only the information from the JSON objects in the report.
+    - Separate the sections with a horizontal rule.
+    - Each event in both sections should be numbered.
   expected_output: >
-    A clear, complete but concise report summarizing the list of events. The report should be in markdown format. Only include the markdown content, no frontmatter or other text.
+    A clear, complete and exhaustive report representing the information of the list of events. The report should be in markdown format. Only include the markdown content, no frontmatter or other text.
   agent: summary_assistant
