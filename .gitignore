@@ -141,3 +141,4 @@ credentials.json
 token.json
 .obsistant/credentials.json
 .obsistant/token.json
+.obsistant/.env

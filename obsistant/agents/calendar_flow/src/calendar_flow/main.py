@@ -19,6 +19,7 @@ from obsistant.agents.calendar_flow.src.calendar_flow.crews.models import (
 from obsistant.agents.calendar_flow.src.calendar_flow.crews.summary_crew import (
     SummaryCrew,
 )
+from obsistant.config import load_vault_env
 from obsistant.core.frontmatter import render_frontmatter
 from obsistant.core.memory_storage import setup_crewai_storage
 
@@ -158,6 +159,9 @@ def kickoff(vault_path: Path | str | None = None, meetings_folder: str = "10-Mee
         vault_path: Path to the Obsidian vault directory (can be Path or str).
         meetings_folder: Name of the meetings folder (default: "10-Meetings").
     """
+    # Load environment variables from .obsistant/.env before creating crews
+    load_vault_env(vault_path)
+
     calendar_flow = CalendarFlow()
     # Convert Path to string for CrewAI compatibility
     vault_path_str = str(vault_path) if vault_path else None

@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 from crewai import Agent, Crew, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, agent, crew, task
-from dotenv import find_dotenv, load_dotenv
 
 from obsistant.agents.calendar_flow.src.calendar_flow.crews.models import (
     CalendarEventsList,
@@ -14,8 +13,6 @@ from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
 from obsistant.agents.calendar_flow.src.calendar_flow.tools.get_next_week_events_tool import (
     GetNextWeekEvents,
 )
-
-load_dotenv(find_dotenv())
 
 if TYPE_CHECKING:
     from typing import Any

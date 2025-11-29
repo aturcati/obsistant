@@ -4,13 +4,10 @@ from typing import TYPE_CHECKING
 from crewai import Agent, Crew, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, after_kickoff, agent, crew, task
-from dotenv import find_dotenv, load_dotenv
 
 from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
     create_llm_with_retries,
 )
-
-load_dotenv(find_dotenv())
 
 if TYPE_CHECKING:
     from typing import Any
