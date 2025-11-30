@@ -35,7 +35,7 @@ class SummaryCrew:
     @agent
     def summary_assistant(self) -> Agent:
         llm = create_llm_with_retries(
-            model="gpt-4o", max_completion_tokens=4000, temperature=0.0
+            model="gpt-5", max_completion_tokens=4000, temperature=0.0
         )
         return Agent(
             config=self.agents_config["summary_assistant"],  # type: ignore[attr-defined]
