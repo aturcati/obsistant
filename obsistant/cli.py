@@ -10,7 +10,7 @@ import click
 from loguru import logger
 
 from . import __version__
-from .agents import calendar_kickoff
+from .agents import calendar_kickoff, deep_research_kickoff
 from .backup import clear_backups as clear_backups_func
 from .backup import create_vault_backup
 from .backup import restore_files as restore_files_func
@@ -774,6 +774,54 @@ def calendar(vault_path: Path, verbose: bool) -> None:
         logger.info(f"Summary saved to {meetings_folder}/Weekly Summaries/")
     except Exception as e:
         logger.error(f"Error running calendar flow: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.argument("query", type=str)
+@click.option(
+    "--quick-notes-folder",
+    default="00-Quick Notes",
+    help="Name of the quick notes folder within the vault (default: 00-Quick Notes)",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def research(
+    vault_path: Path, query: str, quick_notes_folder: str, verbose: bool
+) -> None:
+    """Run the CrewAI deep research flow to perform comprehensive research on a query.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+    QUERY: The research query to investigate
+
+    This command will:
+    - Perform deep research on the query using multiple agents
+    - Validate and fact-check the research findings
+    - Generate a comprehensive research report
+    - Save the report to the Quick Notes folder with proper frontmatter
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        config, effective = get_config_or_default(
+            vault_path, quick_notes_folder=quick_notes_folder
+        )
+        quick_notes = effective.get("quick_notes_folder", quick_notes_folder)
+
+        logger.info(f"Running deep research flow for vault at {vault_path}...")
+        logger.info(f"Research query: {query}")
+        deep_research_kickoff(
+            vault_path=str(vault_path),
+            user_query=query,
+            quick_notes_folder=quick_notes,
+        )
+        logger.info("Deep research flow completed successfully!")
+        logger.info(f"Report saved to {quick_notes}/")
+    except Exception as e:
+        logger.error(f"Error running deep research flow: {e}")
         raise click.ClickException(str(e)) from e
 
 
