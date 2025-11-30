@@ -67,6 +67,7 @@ def create_llm_with_retries(model: str | None = None, **kwargs: Any) -> LLM:
         "model": model,
         "max_retries": 5,  # Higher than default 3 for better resilience
         "timeout": 120,  # Longer timeout to accommodate retries
+        "temperature": 0.0,
         **kwargs,
     }
 

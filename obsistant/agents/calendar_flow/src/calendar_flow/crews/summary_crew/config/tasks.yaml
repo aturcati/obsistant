@@ -1,17 +1,39 @@
 prepare_summary:
   description: >
-    Convert the structured list of events into a clear and complete report. Divide the report into sections for each type of event.
-    Start with the section of the work events, that are given as a list of JSON objects:
-    {work_events}
+    Convert event lists to structured markdown report.
 
-    Then continue with the section of the concerts, that are given as a list of JSON objects:
-    {concerts}
+    INPUT DATA:
+    - Work events: {work_events} (JSON format)
+    - Concerts: {concerts} (JSON format)
 
-    Additional rules:
-    - Include only the information from the JSON objects in the report.
-    - Separate the sections with a horizontal rule.
-    - Each event in both sections should be numbered.
-    - If multiple work events for the same project are provided, include them all in the same section, and include a general summary of the project status.
+    FORMATTING RULES:
+    1. Use ONLY the provided JSON data - do not add external information
+    2. Create separate sections for work events and concerts
+    3. Separate sections using horizontal rules (---)
+    4. Number each event sequentially within its section
+
+    GROUPING LOGIC FOR WORK EVENTS:
+    1. Identify work events that CLEARLY belong to the same project (match by keywords in project name/title)
+    2. Only group events when project relationship is unambiguous - if uncertain, keep separate
+
+    MERGING LOGIC FOR SAME-PROJECT MEETINGS IN SAME WEEK:
+    1. For each clearly identified project group, check if multiple meetings occur in the same week
+    2. If YES (clearly same project, same week):
+       a. Create ONE merged summary by combining all individual meeting summaries
+       b. Merge chronologically: combine insights, decisions, and action items from all meetings
+       c. Remove redundant information - consolidate similar points
+       d. Display the FULL merged summary ONLY in the FIRST meeting of the group
+       e. For subsequent meetings in the same group, replace the summary with a reference:
+          - Format: "Summary merged with [First Meeting Name] - see full summary above"
+    3. If NO (unclear project relationship, different weeks, or different projects):
+       - Each meeting gets its own independent summary
+
+    OUTPUT FORMAT:
+    - Pure markdown (no YAML frontmatter)
+    - No extra explanatory text outside the report structure
+    - Clear section headers
+    - Numbered event lists
+    - Horizontal rules between sections
   expected_output: >
-    A clear, complete and exhaustive report representing the information of the list of events. The report should be in markdown format. Only include the markdown content, no frontmatter or other text.
+    Markdown report with all event information. No frontmatter or extra text.
   agent: summary_assistant

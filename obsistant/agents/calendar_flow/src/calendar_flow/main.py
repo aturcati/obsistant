@@ -97,7 +97,9 @@ class CalendarFlow(Flow[CalendarState]):
             return
 
         work_events = [
-            e.model_dump() for e in self.state.events.events if e.calendar == "work"
+            e.model_dump()
+            for e in self.state.events.events
+            if e.calendar == "work" and e.title != "(No Title)"
         ]
 
         if not work_events:

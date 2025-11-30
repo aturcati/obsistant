@@ -46,7 +46,7 @@ class ConcertCrew:
             tools=[ScrapeWebsiteTool(), EXASearchTool(), TavilySearchTool()],
             llm=llm,
             max_rpm=50,  # Reduced to avoid rate limits
-            max_iter=8,  # Reduced iterations to limit token usage
+            max_iter=5,  # Reduced iterations to limit token usage
             verbose=True,
         )
 
@@ -58,7 +58,7 @@ class ConcertCrew:
             tools=[EXASearchTool()],
             llm=llm,
             max_rpm=50,  # Reduced to avoid rate limits
-            max_iter=5,  # Reduced iterations to limit token usage
+            max_iter=3,  # Reduced iterations to limit token usage
             verbose=True,
         )
 

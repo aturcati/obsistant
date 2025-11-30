@@ -1,72 +1,24 @@
 search_past_meetings_task:
   description: >
-    Search for relevant documents about the following work event:
-    {event}
-
-    The event information is provided as a JSON object. The JSON object can have the following fields:
-    - calendar
-    - title
-    - date
-    - start_time
-    - end_time
-    - attendees (optional)
-    - location (optional)
-    - description (optional)
-
-    Use the title of the event to search for relevant documents. If no title is provided, return an empty list.
+    Search for documents related to work event: {event}. Use event title for search. Return empty list if no title provided.
   expected_output: >
     A list of relevant documents with their similarity scores and metadata. If no relevant documents are found, return an empty list.
   agent: search_agent
 
 summarize_past_meetings_task:
   description: >
-    Given the context and metadata of relevant documents, generate a summary of what was discussed in previous meetings, and what is the status of the project.
-
-    The event for which you need to generate the summary is:
-    {event}
-
-    The event information is provided as a JSON object. The JSON object can have the following fields:
-    - calendar
-    - title
-    - date
-    - start_time
-    - end_time
-    - attendees (optional)
-    - location (optional)
-    - description (optional)
-
-    Be careful at the dates of the retrieved documents (the ones in the "created" property of the documents), and give priority to the most recent ones. Everything older than 1 month should be used for context, but the most recent documents should be used to build the summary the question.
-
-    You can use the "tag" property of the documents to filter the relevant documents and do not include documents that are not related to the specific project of the event.
-
-    Return a paragraph with the summary of the previous meetings, and what is the status of the project, do not divide the summary into sections.
-
-    If no relevant documents are found, return an empty string.
+    Generate summary of previous meetings and project status for event: {event}. Prioritize documents by 'created' date (most recent first). Use documents <1 month old for context, most recent for summary. Filter by 'tag' property to match event project. Return single paragraph (no sections). Return empty string if no relevant documents. Do not use information of other projects in the summary.
   expected_output: >
-    A summary of what was discussed in previous meetings, and what is the status of the project. If no relevant documents are found, return an empty string.
+    A summary of what was discussed in previous meetings for this project, and what is the status of the project. If no relevant documents are found, return an empty string.
   agent: past_meetings_summarizer_agent
   context:
   - search_past_meetings_task
 
 structure_summary_task:
   description: >
-    Extract the information from the summary of the work event, focus on practical information and avoid being too generic and verbose. Convert the summary into a JSON object.
-
-    Use the following information to fill the JSON object:
-      {event}
-
-    And use the summary of the previous meetings to fill the summary field. If the summary of the previous meetings is empty, return an empty string for the summary field.
+    Convert work event summary to JSON. Use {event} for event fields. Use previous meetings summary for 'summary' field (empty string if no summary). Focus on practical information.
   expected_output: >
-    A JSON object with the information for the work event. The JSON object should have the following fields:
-    - calendar
-    - title
-    - date
-    - start_time
-    - end_time
-    - attendees (optional)
-    - location (optional)
-    - description (optional)
-    - summary: Summary of what was discussed in previous meetings, and what is the status of the project.
+    JSON object with event fields (calendar, title, date, start_time, end_time, attendees, location, description) plus 'summary' field (previous meetings status).
   agent: summary_structure_assistant
   context:
   - search_past_meetings_task

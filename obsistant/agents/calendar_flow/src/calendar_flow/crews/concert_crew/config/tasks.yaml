@@ -1,38 +1,13 @@
 create_research_plan:
-  description: |
-    Prepare a concise research plan to gather all the required information for a concert happening next week (today is {today}). The research plan should be a list of steps to be taken to gather the information.
-
-    The event information is provided as a JSON object. The JSON object can have the following fields:
-    - calendar
-    - title
-    - date
-    - start_time
-    - end_time
-    - attendees (optional)
-    - location (optional)
-    - description (optional)
-
-    It is necessary to research the following information:
-      - artist: Artist name
-      - date: Event date
-      - start_time: Event start time
-      - end_time: Event end time
-      - location: Event location
-      - artist_description: Summary of the artist (extensive, but maximum 2 paragraphs)
-      - support_artists: List of support artists
-      - price: Ticket price
-      - spotify_link: Link to artist's Spotify page
-      - tidal_link: Link to artist's Tidal page
-
-    The concert to research is:
-      {concert}
+  description: >
+    Create a research plan (markdown list) for concert next week (today: {today}). Research: artist, date, start_time, end_time, location, artist_description (max 2 paragraphs), support_artists, price, spotify_link, tidal_link. Event: {concert}
   expected_output: >
     A research plan in markdown format planning the steps necessary to gather the information for the concert.
   agent: research_planner
 
 research_concert_task:
   description: >
-    Follow the research plan provided by the research_planner agent to create a research report with all the requested information for the concert. Use websites like Songkick, Ticketmaster, etc. to find information about the concert. If you don't find the information, try to find it in other websites like Wikipedia, Google, etc.
+    Execute the research plan to create a markdown report. Use Songkick, Ticketmaster first, then Wikipedia, Google if needed.
   expected_output: >
     A research report in markdown format with all the requested information for the concert.
   agent: concert_researcher
@@ -41,10 +16,7 @@ research_concert_task:
 
 concert_factcheck_task:
   description: >
-    Check the information gathered from the research report and verify if it is accurate and complete. If it is not, correct it.
-
-    The information of the event is:
-    {concert}
+    Verify research report accuracy against event: {concert}. Priority: artist, location, date must match. Correct any discrepancies.
 
   expected_output: >
     A research report in markdown format with all the requested and verified information for the concert.
@@ -55,19 +27,9 @@ concert_factcheck_task:
 
 concert_research_summary:
   description: >
-    Extract the information from the research report and convert it into a JSON object.
+    Extract information from research report (markdown) and convert to JSON.
   expected_output: >
-    A JSON object with the information for the concert. The JSON object should have the following fields:
-    - artist: Artist name
-    - date: Event date
-    - start_time: Event start time
-    - end_time: Event end time
-    - location: Event location
-    - artist_description: Summary of the artist (extensive, but maximum 2 paragraphs)
-    - support_artists: List of support artists (string with comma separated list)
-    - price: Ticket price
-    - spotify_link: Link to artist's Spotify page
-    - tidal_link: Link to artist's Tidal page
+    JSON object with fields: artist, date, start_time, end_time, location, artist_description (max 2 paragraphs), support_artists (comma-separated string), price, spotify_link, tidal_link.
   agent: concert_summary_assistant
   context:
   - research_concert_task

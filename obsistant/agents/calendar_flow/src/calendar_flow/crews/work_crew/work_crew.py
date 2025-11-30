@@ -74,7 +74,7 @@ class WorkCrew:
             tools=[qdrant_tool],
             llm=llm,
             max_rpm=50,
-            max_iter=10,
+            max_iter=5,
             verbose=True,
         )
 
@@ -86,7 +86,7 @@ class WorkCrew:
             tools=[],
             llm=llm,
             max_rpm=50,
-            max_iter=10,
+            max_iter=5,
             verbose=True,
         )
 
@@ -98,7 +98,7 @@ class WorkCrew:
             tools=[],
             llm=llm,
             max_rpm=50,
-            max_iter=10,
+            max_iter=5,
             verbose=True,
         )
 

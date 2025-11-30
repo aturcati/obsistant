@@ -34,13 +34,15 @@ class SummaryCrew:
 
     @agent
     def summary_assistant(self) -> Agent:
-        llm = create_llm_with_retries(max_completion_tokens=4000)
+        llm = create_llm_with_retries(
+            model="gpt-4o", max_completion_tokens=4000, temperature=0.0
+        )
         return Agent(
             config=self.agents_config["summary_assistant"],  # type: ignore[attr-defined]
             tools=[],
             llm=llm,
             max_rpm=30,  # Reduced to avoid rate limits (TPM: 30,000 limit)
-            max_iter=10,  # Reduced iterations to limit token usage
+            max_iter=5,  # Reduced iterations to limit token usage
             verbose=True,
         )
 
