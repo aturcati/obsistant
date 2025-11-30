@@ -32,7 +32,7 @@ create_research_plan:
 
 research_concert_task:
   description: >
-    Follow the research plan provided by the research_planner agent to create a research report with all the requested information for the concert. Use websites like Eventim, Songkick, Ticketmaster, etc. to find information about the concert. If you don't find the information, try to find it in other websites like Wikipedia, Google, etc.
+    Follow the research plan provided by the research_planner agent to create a research report with all the requested information for the concert. Use websites like Songkick, Ticketmaster, etc. to find information about the concert. If you don't find the information, try to find it in other websites like Wikipedia, Google, etc.
   expected_output: >
     A research report in markdown format with all the requested information for the concert.
   agent: concert_researcher

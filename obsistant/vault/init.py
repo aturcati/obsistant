@@ -35,6 +35,10 @@ def init_vault(
     storage_dir = obsistant_dir / "storage"
     storage_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create qdrant_storage directory for Qdrant vector database
+    qdrant_storage_dir = obsistant_dir / "qdrant_storage"
+    qdrant_storage_dir.mkdir(parents=True, exist_ok=True)
+
     # Create folder structure
     if not skip_folders:
         folders = [

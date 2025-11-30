@@ -11,6 +11,7 @@ prepare_summary:
     - Include only the information from the JSON objects in the report.
     - Separate the sections with a horizontal rule.
     - Each event in both sections should be numbered.
+    - If multiple work events for the same project are provided, include them all in the same section, and include a general summary of the project status.
   expected_output: >
     A clear, complete and exhaustive report representing the information of the list of events. The report should be in markdown format. Only include the markdown content, no frontmatter or other text.
   agent: summary_assistant

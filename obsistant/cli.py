@@ -18,6 +18,8 @@ from .config import load_config, save_config
 from .core.calendar_auth import authenticate_google_calendar
 from .meetings import process_meetings_folder
 from .notes import process_notes_folder, process_quick_notes_folder
+from .qdrant import is_qdrant_running, start_qdrant_server, stop_qdrant_server
+from .qdrant.ingest import ingest_documents
 from .vault import init_vault, process_vault
 
 
@@ -772,6 +774,198 @@ def calendar(vault_path: Path, verbose: bool) -> None:
         logger.info(f"Summary saved to {meetings_folder}/Weekly Summaries/")
     except Exception as e:
         logger.error(f"Error running calendar flow: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.group()
+def qdrant() -> None:
+    """Manage Qdrant vector database server for RAG operations.
+
+    This command group provides subcommands to start and stop a local Qdrant
+    server running in Docker. The server storage is placed in the vault's
+    .obsistant/qdrant_storage/ directory.
+    """
+    pass
+
+
+@qdrant.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option(
+    "--http-port",
+    type=int,
+    default=6333,
+    help="HTTP API port (default: 6333)",
+)
+@click.option(
+    "--grpc-port",
+    type=int,
+    default=6334,
+    help="gRPC API port (default: 6334)",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def start(
+    vault_path: Path,
+    http_port: int,
+    grpc_port: int,
+    verbose: bool,
+) -> None:
+    """Start Qdrant server in Docker for the vault.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will:
+    - Create .obsistant/qdrant_storage/ directory if it doesn't exist
+    - Start Qdrant server in a Docker container
+    - Mount the storage directory to persist data
+    - Expose HTTP API on port 6333 and gRPC API on port 6334 (configurable)
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        if is_qdrant_running(vault_path):
+            logger.info("Qdrant server is already running for this vault")
+            logger.info(f"Dashboard: http://localhost:{http_port}/dashboard")
+            return
+
+        container_id = start_qdrant_server(vault_path, ports=(http_port, grpc_port))
+        logger.info("Qdrant server started successfully")
+        logger.info(f"Container ID: {container_id}")
+        logger.info(f"HTTP API: http://localhost:{http_port}")
+        logger.info(f"gRPC API: localhost:{grpc_port}")
+        logger.info(f"Dashboard: http://localhost:{http_port}/dashboard")
+        logger.info(f"Storage: {vault_path}/.obsistant/qdrant_storage/")
+    except Exception as e:
+        logger.error(f"Error starting Qdrant server: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@qdrant.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def stop(vault_path: Path, verbose: bool) -> None:
+    """Stop Qdrant server for the vault.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will stop the Docker container running Qdrant for this vault.
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        stopped = stop_qdrant_server(vault_path)
+        if stopped:
+            logger.info("Qdrant server stopped successfully")
+        else:
+            logger.info("Qdrant server was not running")
+    except Exception as e:
+        logger.error(f"Error stopping Qdrant server: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@qdrant.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option(
+    "--collection",
+    default="obsistant-notes",
+    help="Qdrant collection name (default: obsistant-notes)",
+)
+@click.option(
+    "--include-pdfs/--no-include-pdfs",
+    default=False,
+    help="Include PDF files in ingestion (default: False)",
+)
+@click.option(
+    "--recreate-collection",
+    is_flag=True,
+    help="Delete and recreate the collection before ingestion",
+)
+@click.option(
+    "--dry-run",
+    "-n",
+    is_flag=True,
+    help="Show what would be done without actually ingesting",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def ingest(
+    vault_path: Path,
+    collection: str,
+    include_pdfs: bool,
+    recreate_collection: bool,
+    dry_run: bool,
+    verbose: bool,
+) -> None:
+    """Ingest documents from vault into Qdrant vector database.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will:
+    - Collect markdown files from notes and meetings folders (excluding Weekly Summaries)
+    - Optionally include PDF files if --include-pdfs is set
+    - Chunk documents semantically using sentence similarity
+    - Generate embeddings using OpenAI text-embedding-3-large
+    - Store embeddings and metadata in Qdrant
+
+    Requires OPENAI_API_KEY to be set in .obsistant/.env or environment.
+    """
+    from .config.env_loader import load_vault_env
+
+    logger = setup_logger(verbose)
+
+    try:
+        # Load environment variables
+        load_vault_env(vault_path)
+
+        # Check if Qdrant server is running
+        if not is_qdrant_running(vault_path):
+            logger.error("Qdrant server is not running.")
+            logger.info(
+                f"Please start it first with: obsistant qdrant start {vault_path}"
+            )
+            raise click.ClickException("Qdrant server is not running")
+
+        # Load config
+        config, _ = get_config_or_default(vault_path)
+
+        if dry_run:
+            logger.info("DRY RUN: Would ingest documents into Qdrant")
+        else:
+            logger.info(f"Ingesting documents into collection '{collection}'")
+
+        # Ingest documents
+        stats = ingest_documents(
+            vault_path=vault_path,
+            config=config,
+            collection_name=collection,
+            include_pdfs=include_pdfs,
+            recreate_collection=recreate_collection,
+            dry_run=dry_run,
+            logger_instance=logger,
+        )
+
+        # Display summary
+        logger.info("Ingestion complete!")
+        logger.info(f"Files processed: {stats['files_processed']}")
+        if stats.get("files_skipped", 0) > 0:
+            logger.info(f"Files skipped (unchanged): {stats['files_skipped']}")
+        logger.info(f"Chunks created: {stats['chunks_created']}")
+        logger.info(f"Embeddings generated: {stats['embeddings_generated']}")
+        if stats["errors"]:
+            logger.warning(f"Errors encountered: {len(stats['errors'])}")
+            if verbose:
+                for error in stats["errors"]:
+                    logger.error(f"  - {error}")
+
+    except Exception as e:
+        logger.error(f"Error ingesting documents: {e}")
         raise click.ClickException(str(e)) from e
 
 

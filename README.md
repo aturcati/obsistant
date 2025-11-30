@@ -431,6 +431,110 @@ obsistant notes ~/vault --format
 obsistant quick-notes ~/vault --format
 ```
 
+## Qdrant Vector Database Integration
+
+obsistant includes support for ingesting documents into a Qdrant vector database for semantic search and RAG (Retrieval-Augmented Generation) operations.
+
+### Prerequisites
+
+1. **Docker**: Qdrant runs in a Docker container
+2. **OpenAI API Key**: Required for generating embeddings. Set it in `.obsistant/.env`:
+   ```bash
+   OPENAI_API_KEY=your-api-key-here
+   ```
+
+### Starting Qdrant Server
+
+Before ingesting documents, start the Qdrant server:
+
+```bash
+obsistant qdrant start /path/to/vault
+```
+
+This will:
+- Start Qdrant server in Docker (if not already running)
+- Create `.obsistant/qdrant_storage/` directory for persistent storage
+- Expose HTTP API on port 6333 and gRPC API on port 6334
+- Provide dashboard at http://localhost:6333/dashboard
+
+### Stopping Qdrant Server
+
+```bash
+obsistant qdrant stop /path/to/vault
+```
+
+### Ingesting Documents
+
+Ingest markdown files from your vault into Qdrant:
+
+```bash
+obsistant qdrant ingest /path/to/vault
+```
+
+**Options:**
+- `--collection NAME`: Collection name (default: `obsistant-notes`)
+- `--include-pdfs`: Include PDF files in ingestion (requires `pdfplumber`)
+- `--recreate-collection`: Delete and recreate collection before ingestion
+- `--dry-run`: Preview what would be ingested without actually doing it
+- `--verbose`: Enable verbose logging
+
+**Example:**
+```bash
+# Basic ingestion
+obsistant qdrant ingest /path/to/vault
+
+# Include PDFs and recreate collection
+obsistant qdrant ingest /path/to/vault --include-pdfs --recreate-collection
+
+# Dry run to see what would be ingested
+obsistant qdrant ingest /path/to/vault --dry-run --verbose
+```
+
+### What Gets Ingested
+
+- **Markdown files** from:
+  - Notes folder (`20-Notes` by default)
+  - Meetings folder (`10-Meetings` by default)
+  - **Excludes**: Files in `Weekly Summaries` subfolder
+
+- **PDF files** (if `--include-pdfs` is set):
+  - From notes and meetings folders
+
+### Document Processing
+
+Documents are processed using:
+
+1. **Semantic Chunking**: Text is split into semantically coherent chunks using sentence similarity (SentenceTransformer model)
+2. **Embedding Generation**: Each chunk is embedded using OpenAI `text-embedding-3-large` (3072 dimensions)
+3. **Metadata Extraction**: Frontmatter tags, dates, and file metadata are included in payloads
+
+### Metadata Included
+
+Each document chunk includes metadata:
+- `text`: The chunk content
+- `chunk_index`: Index of chunk within document
+- `file_path`: Relative path to file
+- `document_type`: "meeting", "note", or "pdf"
+- `tags`: All tags from frontmatter and body
+- `created`: Creation date
+- `modified`: Modification date
+- `title`: Document title
+- All other frontmatter fields
+
+### PDF Support
+
+To enable PDF ingestion, install the optional dependency:
+
+```bash
+uv pip install pdfplumber
+```
+
+Or install obsistant with PDF support:
+
+```bash
+uv pip install -e '.[pdf]'
+```
+
 #### Daily Workflow
 ```bash
 # 1. Process quick notes from daily capture

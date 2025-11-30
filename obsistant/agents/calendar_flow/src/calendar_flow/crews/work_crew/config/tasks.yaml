@@ -1,0 +1,73 @@
+search_past_meetings_task:
+  description: >
+    Search for relevant documents about the following work event:
+    {event}
+
+    The event information is provided as a JSON object. The JSON object can have the following fields:
+    - calendar
+    - title
+    - date
+    - start_time
+    - end_time
+    - attendees (optional)
+    - location (optional)
+    - description (optional)
+
+    Use the title of the event to search for relevant documents. If no title is provided, return an empty list.
+  expected_output: >
+    A list of relevant documents with their similarity scores and metadata. If no relevant documents are found, return an empty list.
+  agent: search_agent
+
+summarize_past_meetings_task:
+  description: >
+    Given the context and metadata of relevant documents, generate a summary of what was discussed in previous meetings, and what is the status of the project.
+
+    The event for which you need to generate the summary is:
+    {event}
+
+    The event information is provided as a JSON object. The JSON object can have the following fields:
+    - calendar
+    - title
+    - date
+    - start_time
+    - end_time
+    - attendees (optional)
+    - location (optional)
+    - description (optional)
+
+    Be careful at the dates of the retrieved documents (the ones in the "created" property of the documents), and give priority to the most recent ones. Everything older than 1 month should be used for context, but the most recent documents should be used to build the summary the question.
+
+    You can use the "tag" property of the documents to filter the relevant documents and do not include documents that are not related to the specific project of the event.
+
+    Return a paragraph with the summary of the previous meetings, and what is the status of the project, do not divide the summary into sections.
+
+    If no relevant documents are found, return an empty string.
+  expected_output: >
+    A summary of what was discussed in previous meetings, and what is the status of the project. If no relevant documents are found, return an empty string.
+  agent: past_meetings_summarizer_agent
+  context:
+  - search_past_meetings_task
+
+structure_summary_task:
+  description: >
+    Extract the information from the summary of the work event, focus on practical information and avoid being too generic and verbose. Convert the summary into a JSON object.
+
+    Use the following information to fill the JSON object:
+      {event}
+
+    And use the summary of the previous meetings to fill the summary field. If the summary of the previous meetings is empty, return an empty string for the summary field.
+  expected_output: >
+    A JSON object with the information for the work event. The JSON object should have the following fields:
+    - calendar
+    - title
+    - date
+    - start_time
+    - end_time
+    - attendees (optional)
+    - location (optional)
+    - description (optional)
+    - summary: Summary of what was discussed in previous meetings, and what is the status of the project.
+  agent: summary_structure_assistant
+  context:
+  - search_past_meetings_task
+  - summarize_past_meetings_task

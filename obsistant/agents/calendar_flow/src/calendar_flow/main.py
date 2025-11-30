@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -15,9 +16,13 @@ from obsistant.agents.calendar_flow.src.calendar_flow.crews.concert_crew import 
 from obsistant.agents.calendar_flow.src.calendar_flow.crews.models import (
     CalendarEventsList,
     ConcertEventsList,
+    WorkEventsList,
 )
 from obsistant.agents.calendar_flow.src.calendar_flow.crews.summary_crew import (
     SummaryCrew,
+)
+from obsistant.agents.calendar_flow.src.calendar_flow.crews.work_crew import (
+    WorkCrew,
 )
 from obsistant.config import load_vault_env
 from obsistant.core.frontmatter import render_frontmatter
@@ -30,7 +35,7 @@ class CalendarState(BaseModel):
     meetings_folder: str = "10-Meetings"
     events: CalendarEventsList | None = None
     concerts: ConcertEventsList | None = None
-    work_events: CalendarEventsList | None = None
+    work_events: WorkEventsList | None = None
     summary: str = ""
 
 
@@ -64,7 +69,7 @@ class CalendarFlow(Flow[CalendarState]):
             print("No concerts found in events, skipping concert research")
             return
 
-        setup_crewai_storage(self.state.vault_path)
+        setup_crewai_storage(self.state.vault_path, crew_name="concerts")
 
         concert_infos = []
         for i, c in enumerate(concerts):
@@ -99,7 +104,30 @@ class CalendarFlow(Flow[CalendarState]):
             print("No work events found in events, skipping work event research")
             return
 
-        self.state.work_events = CalendarEventsList(events=work_events)
+        storage_dir = setup_crewai_storage(self.state.vault_path, crew_name="work")
+
+        work_infos = []
+        # Change to storage directory so CrewAI can find knowledge sources
+        # CrewAI expects knowledge/ directory relative to current working directory
+        original_cwd = os.getcwd()
+        try:
+            if storage_dir:
+                os.chdir(storage_dir)
+            for i, c in enumerate(work_events):
+                print(f"Researching work event {i + 1}/{len(work_events)}")
+                work_result = (
+                    WorkCrew()
+                    .crew()
+                    .kickoff(
+                        inputs={"event": c},
+                    )
+                )
+                work_infos.append(work_result.pydantic)
+                time.sleep(3)
+        finally:
+            os.chdir(original_cwd)
+
+        self.state.work_events = WorkEventsList(events=work_infos)
 
     @listen(and_(research_concerts, research_work_events))
     def prepare_summary(self):
