@@ -112,7 +112,6 @@ class DeepResearchCrew:
             config=self.tasks_config["write_final_report"],  # type: ignore[attr-defined]
             guardrails=[write_report_guardrail],
             markdown_output=True,  # type: ignore[arg-type]
-            output_file="final_report.md",
         )  # type: ignore[call-arg]
 
     # Define the crew
