@@ -5,7 +5,7 @@ from crewai import Agent, Crew, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, after_kickoff, agent, crew, task
 
-from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
+from obsistant.agents.common.llm_config import (
     create_llm_with_retries,
 )
 
@@ -35,14 +35,15 @@ class SummaryCrew:
     @agent
     def summary_assistant(self) -> Agent:
         llm = create_llm_with_retries(
-            model="gpt-5", max_completion_tokens=4000, temperature=0.0
+            model="gpt-4o",
+            max_completion_tokens=4000,
         )
         return Agent(
             config=self.agents_config["summary_assistant"],  # type: ignore[attr-defined]
             tools=[],
             llm=llm,
-            max_rpm=30,  # Reduced to avoid rate limits (TPM: 30,000 limit)
-            max_iter=5,  # Reduced iterations to limit token usage
+            max_rpm=30,
+            max_iter=5,
             verbose=True,
         )
 

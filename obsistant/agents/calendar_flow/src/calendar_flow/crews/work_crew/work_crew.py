@@ -18,11 +18,11 @@ from qdrant_client.http import models as qmodels
 from obsistant.agents.calendar_flow.src.calendar_flow.crews.models import (
     WorkEvent,
 )
-from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
-    create_llm_with_retries,
-)
 from obsistant.agents.calendar_flow.src.calendar_flow.tools.qdrant_search_tool import (
     OverloadQdrantTool,
+)
+from obsistant.agents.common.llm_config import (
+    create_llm_with_retries,
 )
 
 if TYPE_CHECKING:

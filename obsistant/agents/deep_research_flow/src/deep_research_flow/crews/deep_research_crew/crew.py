@@ -5,7 +5,7 @@ from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import EXASearchTool, ScrapeWebsiteTool
 
-from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
+from obsistant.agents.common.llm_config import (
     create_llm_with_retries,
 )
 from obsistant.agents.deep_research_flow.src.deep_research_flow.crews.deep_research_crew.guardrails.guardrails import (
@@ -29,21 +29,23 @@ class DeepResearchCrew:
     # Define the agents
     @agent
     def research_planner(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000, temperature=0.0)
         return Agent(
             config=self.agents_config["research_planner"],  # type: ignore[attr-defined]
-            llm=create_llm_with_retries(),
+            llm=llm,
             verbose=True,
         )
 
     @agent
     def topic_researcher(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000, temperature=0.0)
         return Agent(
             config=self.agents_config["topic_researcher"],  # type: ignore[attr-defined]
             tools=[
                 EXASearchTool(),
                 ScrapeWebsiteTool(),
             ],
-            llm=create_llm_with_retries(),
+            llm=llm,
             verbose=True,
             max_rpm=150,
             max_iter=15,
@@ -51,13 +53,14 @@ class DeepResearchCrew:
 
     @agent
     def fact_checker(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000, temperature=0.0)
         return Agent(
             config=self.agents_config["fact_checker"],  # type: ignore[attr-defined]
             tools=[
                 EXASearchTool(),
                 ScrapeWebsiteTool(),
             ],
-            llm=create_llm_with_retries(),
+            llm=llm,
             verbose=True,
             max_rpm=150,
             max_iter=15,
@@ -65,9 +68,10 @@ class DeepResearchCrew:
 
     @agent
     def report_writer(self) -> Agent:
+        llm = create_llm_with_retries(max_completion_tokens=4000, temperature=0.0)
         return Agent(
             config=self.agents_config["report_writer"],  # type: ignore[attr-defined]
-            llm=create_llm_with_retries(),
+            llm=llm,
             verbose=True,
             max_rpm=150,
             max_iter=15,

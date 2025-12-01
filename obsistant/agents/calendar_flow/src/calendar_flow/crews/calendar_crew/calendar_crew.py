@@ -7,11 +7,11 @@ from crewai.project import CrewBase, agent, crew, task
 from obsistant.agents.calendar_flow.src.calendar_flow.crews.models import (
     CalendarEventsList,
 )
-from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
-    create_llm_with_retries,
-)
 from obsistant.agents.calendar_flow.src.calendar_flow.tools.get_next_week_events_tool import (
     GetNextWeekEvents,
+)
+from obsistant.agents.common.llm_config import (
+    create_llm_with_retries,
 )
 
 if TYPE_CHECKING:
@@ -35,7 +35,7 @@ class CalendarCrew:
             config=self.agents_config["calendar_assistant"],  # type: ignore[attr-defined]
             tools=[GetNextWeekEvents()],
             llm=llm,
-            max_rpm=50,  # Limit requests per minute to avoid rate limits
+            max_rpm=50,
             verbose=True,
         )
 

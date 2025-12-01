@@ -8,7 +8,7 @@ from crewai_tools import EXASearchTool, ScrapeWebsiteTool, TavilySearchTool
 from obsistant.agents.calendar_flow.src.calendar_flow.crews.models import (
     ConcertEvent,
 )
-from obsistant.agents.calendar_flow.src.calendar_flow.llm_config import (
+from obsistant.agents.common.llm_config import (
     create_llm_with_retries,
 )
 
@@ -33,8 +33,8 @@ class ConcertCrew:
             config=self.agents_config["research_planner"],  # type: ignore[attr-defined]
             tools=[],
             llm=llm,
-            max_rpm=50,  # Reduced to avoid rate limits
-            max_iter=5,  # Reduced iterations to limit token usage
+            max_rpm=50,
+            max_iter=5,
             verbose=True,
         )
 
@@ -45,8 +45,8 @@ class ConcertCrew:
             config=self.agents_config["concert_researcher"],  # type: ignore[attr-defined]
             tools=[ScrapeWebsiteTool(), EXASearchTool(), TavilySearchTool()],
             llm=llm,
-            max_rpm=50,  # Reduced to avoid rate limits
-            max_iter=5,  # Reduced iterations to limit token usage
+            max_rpm=50,
+            max_iter=5,
             verbose=True,
         )
 
@@ -57,8 +57,8 @@ class ConcertCrew:
             config=self.agents_config["concert_factchecker"],  # type: ignore[attr-defined]
             tools=[EXASearchTool()],
             llm=llm,
-            max_rpm=50,  # Reduced to avoid rate limits
-            max_iter=3,  # Reduced iterations to limit token usage
+            max_rpm=50,
+            max_iter=3,
             verbose=True,
         )
 
@@ -69,8 +69,8 @@ class ConcertCrew:
             config=self.agents_config["concert_summary_assistant"],  # type: ignore[attr-defined]
             tools=[],
             llm=llm,
-            max_rpm=50,  # Reduced to avoid rate limits
-            max_iter=5,  # Reduced iterations to limit token usage
+            max_rpm=50,
+            max_iter=5,
             verbose=True,
         )
 
