@@ -1,136 +1,190 @@
 # Obsistant
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/release/python-3110/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+obsistant is an opinionated automation layer for your Obsidian vault that combines **deterministic CLI tools** and **AI agents**.
+It bulk-organizes notes, normalizes frontmatter, backs up and restores your vault, and runs agentic workflows (deep research, calendar summaries) — all while staying predictable, reversible, and scoped to your vault.
 
-A powerful Python CLI tool for automatically organizing and managing Obsidian vaults with intelligent tag extraction, file organization, and frontmatter management.
+## Highlights
 
-## Features
+- **AI agents via CLI**: Run deep research or calendar/weekly-summary flows directly from the command line.
+- **Deterministic processing**: Tag extraction, folder routing, meeting-note normalization, quick-notes triage.
+- **Safety first**: Automatic backups, `--dry-run` previews, idempotent transforms, strict vault confinement.
+- **RAG-ready**: Optional Qdrant integration for semantic search over your notes.
 
-- **🏷️ Intelligent Tag Extraction**: Automatically extracts hashtags from markdown content and moves them to YAML frontmatter
-- **📁 Smart File Organization**: Organizes notes into structured folders based on tags and content type
-- **📅 Meeting Management**: Automatically formats meeting notes with standardized naming (YYMMDD_Title)
-- **🔄 Quick Notes Processing**: Processes and organizes files from quick notes folder into appropriate locations
-- **💾 Backup & Restore**: Comprehensive backup system with easy restoration capabilities
-- **🚀 Batch Processing**: Process entire vaults or specific files with dry-run support
-- **📊 Rich Reporting**: Detailed summaries and progress tracking with colored output
-- **📝 Frontmatter Management**: Intelligent creation and modification date handling
-- **🔗 Meeting Transcript Links**: Extracts meeting transcript URLs from "Chat with meeting transcript:" text
-- **✨ Markdown Formatting**: Optional standardized markdown formatting using `mdformat`
+---
 
-## Updates and Changelog
+## Agentic workflows
 
-- July 2025: I desperately needed a tool to optimize and automate my note taking and archiving system. I did not have time to properly code it. So I vibe-coded it. Use at your own risk!
-- November 2025: I actually wanted to maintain the code, so I had to go through a lot of opinionated refactoring. Now I am a bit more sure about the code quality, but still use at your own risk!
+obsistant ships with CrewAI-powered agent flows. Run them from the CLI:
 
-## Installation
+### Deep Research (`research`)
 
-### Using uv (Recommended)
-
-[uv](https://github.com/astral-sh/uv) is a fast Python package manager. Install obsistant with:
+Turn an open-ended question into a structured research note.
 
 ```bash
-uv add obsistant
+obsistant research /path/to/vault "How should I structure my Obsidian vault?"
 ```
 
-Or install it globally:
+- **Output**: `00-Quick Notes/YYYYMMDD_Shortened_Query.md` with `tags: [research]`.
+- Requires `OPENAI_API_KEY` in `.obsistant/.env`.
+
+### Calendar / Weekly Summary (`calendar`)
+
+Fetch upcoming calendar events, enrich them, and write a weekly summary.
 
 ```bash
-uv tool install obsistant
+# First, authenticate with Google Calendar (one-time setup)
+obsistant calendar-login /path/to/vault
+
+# Then generate the weekly summary
+obsistant calendar /path/to/vault
 ```
 
-### Using pip
+- **Output**: `10-Meetings/Weekly Summaries/Weekly_Events_Summary.md` with `tags: [weekly-summary, meeting]`.
+- Requires Google OAuth credentials in `.obsistant/credentials.json` and `OPENAI_API_KEY` in `.obsistant/.env`.
+
+### Environment setup for agents
+
+Create `.obsistant/.env` in your vault:
 
 ```bash
-pip install obsistant
+OPENAI_API_KEY=your-openai-key
+# For calendar integration
+GOOGLE_API_KEY=...
 ```
 
-### From Source
+Agent memory is stored in `.obsistant/storage/` (auto-created). You can customize work-event context by editing `.obsistant/storage/work/knowledge/user_preference.md`.
+
+<details>
+<summary><strong>Advanced: programmatic invocation</strong></summary>
+
+```python
+from pathlib import Path
+from obsistant.agents.deep_research_flow.src.deep_research_flow import main as research
+from obsistant.agents.calendar_flow.src.calendar_flow import main as calendar
+
+vault = Path("/path/to/vault")
+
+# Deep research
+research.kickoff(vault_path=vault, user_query="Your question here")
+
+# Calendar summary
+calendar.kickoff(vault_path=vault, meetings_folder="10-Meetings")
+```
+
+</details>
+
+---
+
+## CLI commands
+
+All commands share these options (where applicable):
+
+| Option | Description |
+|--------|-------------|
+| `-n, --dry-run` | Preview changes without writing |
+| `-b, --backup-ext` | Backup extension (default `.bak`) |
+| `-f, --format` | Format markdown via `mdformat` |
+| `-v, --verbose` | Verbose logging |
+
+### `init` — Initialize a vault
 
 ```bash
-git clone https://github.com/yourusername/obsistant.git
-cd obsistant
-uv sync
+obsistant init /path/to/vault
 ```
 
-### Development Installation
+Creates the folder structure and `.obsistant/config.yaml`.
+
+Options: `--overwrite-config`, `--skip-folders`.
+
+### `process` — Main processing pass
 
 ```bash
-git clone https://github.com/yourusername/obsistant.git
-cd obsistant
-uv sync --dev
+obsistant process /path/to/vault
 ```
 
-### Enhanced Formatting Installation
+- Extracts `#tags` into frontmatter.
+- Normalizes frontmatter fields (`created`, `modified`, `tags`, etc.).
+- Applies tag-based routing rules.
 
-For improved GitHub Flavored Markdown (GFM) formatting support, install the formatting extras:
+### `meetings` — Organize meeting notes
 
 ```bash
-# Install with formatting dependencies
-uv pip install -e '.[dev,formatting]'
-
-# Or install just the formatting extras to an existing installation
-uv pip install mdformat-gfm
+obsistant meetings /path/to/vault
 ```
 
-This adds support for:
-- GitHub Flavored Markdown table formatting
-- Enhanced list and code block formatting
-- Preserved table structure during formatting with `mdformat-gfm`
-- Safeguard to skip formatting when `mdformat-gfm` is missing if tables are present
-- Improved compatibility with GitHub markdown rendering
+- Renames files to `YYMMDD_Title` format.
+- Ensures `meeting` tag is present.
+- Archives old meetings based on `archive_weeks`.
 
-## Quick Start
-
-### Initialize a New Vault
-
-The easiest way to get started is to initialize a new vault with the recommended structure:
+### `notes` — Organize notes by tags
 
 ```bash
-obsistant init /path/to/your/vault
+obsistant notes /path/to/vault
 ```
 
-This will create:
-- The recommended folder structure
-- A `config.yaml` file with default configuration values
+Moves notes into `20-Notes/` subfolders based on their primary tag (e.g., `products/app` → `20-Notes/products/app/`).
 
-You can customize the initialization:
+### `quick-notes` — Triage quick-capture inbox
 
 ```bash
-# Only create config.yaml, skip folder structure
-obsistant init /path/to/vault --skip-folders
-
-# Overwrite existing config.yaml
-obsistant init /path/to/vault --overwrite-config
+obsistant quick-notes /path/to/vault
 ```
 
-## Vault Structure
+- Routes `meeting`-tagged files to Meetings folder.
+- Routes other tagged files to Notes subfolders.
 
-Obsistant is designed to work with a structured Obsidian vault. Here's the recommended organization:
+### `backup` / `restore` / `clear-backups`
+
+```bash
+obsistant backup /path/to/vault --name "pre-migration"
+obsistant restore /path/to/vault [--file specific.md]
+obsistant clear-backups /path/to/vault
+```
+
+### `qdrant` — Vector database for RAG
+
+```bash
+obsistant qdrant start /path/to/vault   # Start Qdrant in Docker
+obsistant qdrant stop /path/to/vault    # Stop Qdrant
+obsistant qdrant ingest /path/to/vault  # Ingest notes into Qdrant
+```
+
+Ingest options: `--collection`, `--include-pdfs`, `--recreate-collection`, `--dry-run`.
+
+Requires Docker and `OPENAI_API_KEY` in `.obsistant/.env`.
+
+---
+
+## The `.obsistant` folder
+
+All configuration and agent state lives here:
 
 ```
 Your-Vault/
-├── config.yaml            # Configuration file (created by init command)
-├── 00-Quick Notes/        # Temporary notes for quick capture
-├── 10-Meetings/          # Meeting notes with YYMMDD_Title format
-│   └── Archive/          # Archived meetings organized by year
-├── 20-Notes/             # Main knowledge base, organized by tags
-│   ├── products/         # Product-related notes
-│   ├── projects/          # Project documentation
-│   ├── devops/           # DevOps and infrastructure notes
-│   ├── challenges/       # Technical challenges and solutions
-│   ├── events/           # Event notes and conferences
-│   └── various/          # Miscellaneous notes
-├── 30-Guides/            # Documentation and guides
-├── 40-Vacations/         # Personal time tracking
-└── 50-Files/             # Attachments and resources
+├── .obsistant/
+│   ├── config.yaml        # Main configuration
+│   ├── .env               # API keys and secrets
+│   ├── storage/           # CrewAI agent memory (auto-managed)
+│   ├── qdrant_storage/    # Qdrant data (auto-managed)
+│   ├── credentials.json   # Google OAuth credentials
+│   └── token.json         # Google OAuth token
+├── 00-Quick Notes/
+├── 10-Meetings/
+├── 20-Notes/
+├── 30-Guides/
+├── 40-Vacations/
+└── 50-Files/
 ```
 
-## Configuration
+**Safe to edit**: `config.yaml`, `.env`, crew knowledge files under `storage/*/knowledge/`.
 
-Obsistant uses a `config.yaml` file in the vault root to configure all behavior. The configuration file is automatically created when you run `obsistant init`, or you can create it manually.
+**Auto-managed**: `storage/`, `qdrant_storage/`, `credentials.json`, `token.json`.
 
-### Configuration File Structure
+You can delete `storage/` or `qdrant_storage/` to reset agent memory or the vector index.
+
+### Configuration (`config.yaml`)
+
+Priority: CLI args > `config.yaml` > built-in defaults.
 
 ```yaml
 vault:
@@ -143,8 +197,8 @@ vault:
     files: "50-Files"
 
 tags:
-  target_tags: ["products", "projects", "devops", "challenges", "events"]
-  ignored_tags: ["olt"]
+  target_tags: [products, projects, devops, challenges, events]
+  ignored_tags: [...]
   tag_regex: "(?<!\\w)#([\\w/-]+)(?=\\s|$)"
 
 meetings:
@@ -154,683 +208,92 @@ meetings:
 
 processing:
   backup_ext: ".bak"
-  date_formats:
-    - "%Y-%m-%d"
-    - "%Y/%m/%d"
-    # ... more formats
-  date_patterns:
-    - "(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2})"
-    # ... more patterns
+  date_formats: ["%Y-%m-%d", "%Y/%m/%d"]  # ... and more
+  date_patterns: ["(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2})"]  # ... and more
 
-granola:
-  link_pattern: "Chat with meeting transcript:\\s*\\[([^\\]]+)\\]\\([^\\)]+\\)"
+calendar:
+  calendars: { primary: "primary" }
+  credentials_path: ".obsistant/credentials.json"
+  token_path: ".obsistant/token.json"
 ```
 
-### Configuration Priority
+Omit any section to use defaults.
 
-1. **CLI arguments** - Highest priority, override config and defaults
-2. **config.yaml** - Used if present
-3. **Defaults** - Used if config.yaml doesn't exist
-
-This means you can always override config values via command-line arguments when needed.
-
-## Usage
-
-### Basic Usage
-
-```bash
-obsistant /path/to/your/vault
-```
-
-### Available Commands
-
-The tool supports multiple commands:
-
-```bash
-obsistant [OPTIONS] COMMAND [ARGS]...
-```
-
-**Commands:**
-- `init`: Initialize a new vault with structure and config.yaml
-- `process`: Process Obsidian vault to extract tags and add metadata (default)
-- `meetings`: Organize meeting notes with standardized naming
-- `notes`: Organize main notes by tags into subfolders
-- `quick-notes`: Process quick notes and move to appropriate locations
-- `backup`: Create vault backups
-- `clear-backups`: Clear all backup files for the specified vault
-- `restore`: Restore corrupted files from backups
-
-### Process Command
-
-```bash
-obsistant process [OPTIONS] VAULT_PATH
-```
-
-**Arguments:**
-- `VAULT_PATH`: Path to your Obsidian vault directory
-
-**Options:**
-- `-n, --dry-run`: Show what would be done without making changes
-- `-b, --backup-ext TEXT`: Backup file extension (default: `.bak`)
-- `-f, --format`: Format markdown files for consistent styling (includes improved list formatting)
-- `-v, --verbose`: Enable verbose output
-- `--help`: Show help message and exit
-
-### Clear Backups Command
-
-```bash
-obsistant clear-backups [OPTIONS] VAULT_PATH
-```
-
-Removes all backup files for the specified vault.
-
-**Options:**
-- `-v, --verbose`: Enable verbose output
-
-### Restore Command
-
-```bash
-obsistant restore [OPTIONS] VAULT_PATH
-```
-
-Restore corrupted files from backups.
-
-**Options:**
-- `--file FILE`: Restore a specific file instead of all files
-- `-v, --verbose`: Enable verbose output
-
-### Universal Formatting Option
-
-**All content-modifying commands** (`process`, `meetings`, `notes`, `quick-notes`) support the `-f / --format` option:
-
-- **Consistent List Formatting**: Improved handling of bullet points and numbered lists with proper spacing and indentation
-- **Standardized Headings**: Consistent heading formatting and spacing
-- **Markdown Compliance**: Ensures all output follows markdown standards using `mdformat`
-- **Link Formatting**: Proper formatting of markdown links and references
-- **Code Block Formatting**: Consistent formatting of inline code and code blocks
-- **Table Preservation**: GitHub Flavored Markdown tables are preserved and formatted correctly with `mdformat-gfm`
-
-**Fallback Strategy:**
-
-If the `mdformat-gfm` plugin is not available, the tool will detect pipe tables and skip formatting altogether to prevent corruption. This ensures the table structures in your markdown files remain intact, even if enhanced formatting is unavailable.
-
-**Usage Examples:**
-```bash
-# Apply formatting to all commands
-obsistant process ~/vault --format
-obsistant meetings ~/vault --format
-obsistant notes ~/vault --format
-obsistant quick-notes ~/vault --format
-```
-
-### Specialized Commands
-
-#### Organize Meeting Notes
-```bash
-obsistant meetings [OPTIONS] VAULT_PATH
-```
-- Renames files using YYMMDD_Title format
-- Ensures all files have the 'meeting' tag
-- Extracts dates from frontmatter or file creation date
-- **Supports `-f / --format`** for consistent markdown formatting
-
-#### Organize Main Notes by Tags
-```bash
-obsistant notes [OPTIONS] VAULT_PATH
-```
-- Moves files to appropriate subfolders based on tags
-- Supports nested folder structures for subtags
-- Handles these target tags: `products`, `projects`, `devops`, `challenges`, `events`
-- **Supports `-f / --format`** for consistent markdown formatting
-
-#### Process Quick Notes
-```bash
-obsistant quick-notes [OPTIONS] VAULT_PATH
-```
-- Processes files from Quick Notes folder
-- Files with `meeting` tag → moved to Meetings folder
-- Other files → moved to appropriate Notes subfolders
-- Applies appropriate formatting based on destination
-- **Supports `-f / --format`** for consistent markdown formatting
-
-#### Create Vault Backup
-```bash
-obsistant backup [OPTIONS] VAULT_PATH
-```
-- Creates complete vault backup with timestamp
-- Option to specify custom backup name
-- Removes existing backup if same name exists
-
-**Options:**
-- `--name TEXT`: Custom backup name (default: timestamp)
-- `-v, --verbose`: Enable verbose output
-
-### Init Command
-
-```bash
-obsistant init [OPTIONS] VAULT_PATH
-```
-
-Initialize a new vault with the recommended structure and configuration.
-
-**Arguments:**
-- `VAULT_PATH`: Path where the vault should be created
-
-**Options:**
-- `--overwrite-config`: Overwrite existing config.yaml if it exists
-- `--skip-folders`: Don't create folder structure, only create config.yaml
-- `-v, --verbose`: Enable verbose output
-
-**Examples:**
-```bash
-# Initialize a new vault
-obsistant init ~/Documents/MyVault
-
-# Initialize with custom options
-obsistant init ~/Documents/MyVault --skip-folders
-obsistant init ~/Documents/MyVault --overwrite-config
-```
-
-### Examples
-
-#### Quick Start Examples
-```bash
-# Initialize a new vault
-obsistant init ~/Documents/MyVault
-
-# Preview changes without modifying files
-obsistant ~/Obsidian/Work --dry-run
-
-# Process vault and apply changes
-obsistant ~/Obsidian/Work
-```
-
-#### Basic Processing
-```bash
-# Process vault with default settings
-obsistant ~/Documents/MyVault
-```
-
-#### Dry Run (Preview Changes)
-```bash
-# See what would be changed without making modifications
-obsistant --dry-run ~/Documents/MyVault
-```
-
-#### With Formatting
-```bash
-# Process vault and format markdown for consistency
-obsistant --format ~/Documents/MyVault
-```
-
-#### Custom Backup Extension
-```bash
-# Use custom backup file extension
-obsistant --backup-ext .backup ~/Documents/MyVault
-```
-
-#### Verbose Output
-```bash
-# Enable detailed logging
-obsistant --verbose ~/Documents/MyVault
-```
-
-#### Managing Backups
-```bash
-# Clear all backup files for a vault
-obsistant clear-backups ~/Documents/MyVault
-
-# Restore all files from backups
-obsistant restore ~/Documents/MyVault
-
-# Restore a specific file from backup
-obsistant restore ~/Documents/MyVault --file ~/Documents/MyVault/note.md
-```
-
-#### Using New Command Structure
-```bash
-# Explicitly use the process command
-obsistant process ~/Documents/MyVault --dry-run
-
-# Process with formatting
-obsistant process ~/Documents/MyVault --format
-```
-
-#### Specialized Commands Examples
-```bash
-# Process quick notes from daily capture
-obsistant quick-notes ~/Documents/MyVault
-
-# Organize meeting notes with formatting
-obsistant meetings ~/Documents/MyVault --format
-
-# Organize main notes by tags with formatting
-obsistant notes ~/Documents/MyVault --format
-
-# Process quick notes with improved formatting
-obsistant quick-notes ~/Documents/MyVault --format
-
-# Create backup before major changes
-obsistant backup ~/Documents/MyVault --name "pre-migration"
-```
-
-#### Formatting Improvements Examples
-```bash
-# All these commands now support improved list formatting with -f/--format:
-
-# Process vault with improved list and markdown formatting
-obsistant process ~/vault --format
-
-# Meeting notes with consistent bullet point formatting
-obsistant meetings ~/vault --format
-
-# Notes organization with standardized list formatting
-obsistant notes ~/vault --format
-
-# Quick notes processing with formatting improvements
-obsistant quick-notes ~/vault --format
-```
-
-## Qdrant Vector Database Integration
-
-obsistant includes support for ingesting documents into a Qdrant vector database for semantic search and RAG (Retrieval-Augmented Generation) operations.
-
-### Prerequisites
-
-1. **Docker**: Qdrant runs in a Docker container
-2. **OpenAI API Key**: Required for generating embeddings. Set it in `.obsistant/.env`:
-   ```bash
-   OPENAI_API_KEY=your-api-key-here
-   ```
-
-### Starting Qdrant Server
-
-Before ingesting documents, start the Qdrant server:
-
-```bash
-obsistant qdrant start /path/to/vault
-```
-
-This will:
-- Start Qdrant server in Docker (if not already running)
-- Create `.obsistant/qdrant_storage/` directory for persistent storage
-- Expose HTTP API on port 6333 and gRPC API on port 6334
-- Provide dashboard at http://localhost:6333/dashboard
-
-### Stopping Qdrant Server
-
-```bash
-obsistant qdrant stop /path/to/vault
-```
-
-### Ingesting Documents
-
-Ingest markdown files from your vault into Qdrant:
-
-```bash
-obsistant qdrant ingest /path/to/vault
-```
-
-**Options:**
-- `--collection NAME`: Collection name (default: `obsistant-notes`)
-- `--include-pdfs`: Include PDF files in ingestion (requires `pdfplumber`)
-- `--recreate-collection`: Delete and recreate collection before ingestion
-- `--dry-run`: Preview what would be ingested without actually doing it
-- `--verbose`: Enable verbose logging
-
-**Example:**
-```bash
-# Basic ingestion
-obsistant qdrant ingest /path/to/vault
-
-# Include PDFs and recreate collection
-obsistant qdrant ingest /path/to/vault --include-pdfs --recreate-collection
-
-# Dry run to see what would be ingested
-obsistant qdrant ingest /path/to/vault --dry-run --verbose
-```
-
-### What Gets Ingested
-
-- **Markdown files** from:
-  - Notes folder (`20-Notes` by default)
-  - Meetings folder (`10-Meetings` by default)
-  - **Excludes**: Files in `Weekly Summaries` subfolder
-
-- **PDF files** (if `--include-pdfs` is set):
-  - From notes and meetings folders
-
-### Document Processing
-
-Documents are processed using:
-
-1. **Semantic Chunking**: Text is split into semantically coherent chunks using sentence similarity (SentenceTransformer model)
-2. **Embedding Generation**: Each chunk is embedded using OpenAI `text-embedding-3-large` (3072 dimensions)
-3. **Metadata Extraction**: Frontmatter tags, dates, and file metadata are included in payloads
-
-### Metadata Included
-
-Each document chunk includes metadata:
-- `text`: The chunk content
-- `chunk_index`: Index of chunk within document
-- `file_path`: Relative path to file
-- `document_type`: "meeting", "note", or "pdf"
-- `tags`: All tags from frontmatter and body
-- `created`: Creation date
-- `modified`: Modification date
-- `title`: Document title
-- All other frontmatter fields
-
-### PDF Support
-
-To enable PDF ingestion, install the optional dependency:
-
-```bash
-uv pip install pdfplumber
-```
-
-Or install obsistant with PDF support:
-
-```bash
-uv pip install -e '.[pdf]'
-```
-
-#### Daily Workflow
-```bash
-# 1. Process quick notes from daily capture
-obsistant quick-notes ~/Documents/MyVault
-
-# 2. Organize meeting notes
-obsistant meetings ~/Documents/MyVault
-
-# 3. Process and organize all notes
-obsistant process ~/Documents/MyVault --dry-run  # Preview first
-obsistant process ~/Documents/MyVault            # Apply changes
-```
-
-#### Migration Workflow
-```bash
-# 1. Create backup before major changes
-obsistant backup ~/Documents/MyVault --name "pre-migration"
-
-# 2. Process vault with dry run
-obsistant process ~/Documents/MyVault --dry-run
-
-# 3. Apply changes
-obsistant process ~/Documents/MyVault
-
-# 4. If issues occur, restore from backup
-obsistant restore ~/Documents/MyVault
-```
-
-## Tag System
-
-Obsistant uses a hierarchical tag system for organization:
-
-### Primary Tags
-- `products` - Product-related documentation
-- `projects` - Project management and documentation
-- `devops` - Infrastructure and deployment notes
-- `challenges` - Technical challenges and solutions
-- `events` - Conferences, meetings, and events
-
-### Tag Hierarchy
-Tags support nested structures using forward slashes:
-- `products/awesome-app` → `20-Notes/products/awesome-app/`
-- `projects/migration/phase1` → `20-Notes/projects/migration/phase1/`
-
-### Special Tags
-- `meeting` - Automatically applied to meeting notes
-
-## Frontmatter Management
-
-Obsistant automatically manages YAML frontmatter with these properties:
-
-```yaml
----
-created: '2024-01-15'        # Earliest date found (body content or file creation)
-modified: '2024-01-16'       # File modification date (auto-updated)
-meeting-transcript: 'url'    # Meeting transcript URL (if found)
-tags:                        # Sorted alphabetically
-  - products/awesome-app
-  - devops/deployment
----
-```
-
-### Property Ordering
-1. `created` - Creation date
-2. `modified` - Last modification date
-3. `meeting-transcript` - Meeting transcript URL (if present)
-4. `tags` - Sorted tag list
-5. Any other existing properties (preserved)
-
-## Meeting Notes
-
-Meeting notes are automatically formatted with:
-- **Filename**: `YYMMDD_Title.md` (e.g., `240115_Project_Kickoff.md`)
-- **Tags**: Automatically includes `meeting` tag
-- **Date Extraction**: From frontmatter `created` field or file creation date
-
-Example meeting note:
-```markdown
----
-created: '2024-01-15'
-modified: '2024-01-15'
-tags:
-  - meeting
-  - projects/awesome-app
 ---
 
-# Project Kickoff Meeting
+## Tags and frontmatter
 
-## Attendees
-- John Doe
-- Jane Smith
+- **Primary tags**: `products`, `projects`, `devops`, `challenges`, `events`.
+- **Hierarchies**: `products/app` → `20-Notes/products/app/`.
+- **Special tags**: `meeting` (meeting notes), `research` (research flow output).
 
-## Agenda
-1. Project overview
-2. Timeline discussion
-3. Next steps
+Frontmatter field order: `created` → `modified` → `meeting-transcript` → `tags` → other fields.
+
+Tag extraction uses regex `(?<!\w)#([\w/-]+)`, ignores code blocks and malformed tags, and de-duplicates with existing frontmatter tags.
+
+---
+
+## Safety
+
+- **Dry runs**: `--dry-run` on all content-modifying commands.
+- **Backups**: Files backed up with `.bak` extension before modification.
+- **Idempotent**: Multiple runs converge to stable state.
+- **Vault-scoped**: Operations never escape the vault root.
+
+---
+
+## Installation
+
+```bash
+# Using uv (recommended)
+uv add obsistant
+# or globally
+uv tool install obsistant
+
+# Using pip
+pip install obsistant
+
+# From source
+git clone https://github.com/aturcati/obsistant.git && cd obsistant && uv sync --dev
 ```
 
-## Supported Date Formats
+Optional extras: `mdformat-gfm` (table formatting), `pdfplumber` (PDF ingestion).
 
-Obsistant automatically detects these date formats:
-- ISO: `2024-01-15`, `2024/01/15`
-- US: `01/15/2024`, `1/15/2024`
-- European: `15/01/2024`, `15.01.2024`
-- Long: `January 15, 2024`, `Jan 15, 2024`
-
-## How It Works
-
-### Tag Extraction
-
-The tool uses the regex pattern `(?<!\\w)#([\\w/-]+)` to find tags in your markdown content:
-
-**Before:**
-```markdown
-# My Note
-
-This is a note about #python programming with #web-development.
-I'm working on a #project/backend task.
-```
-
-**After:**
-```markdown
 ---
-created: '2024-01-15'
-tags:
-- project/backend
-- python
-- web-development
----
-# My Note
-
-This is a note about #python programming with #web-development.
-I'm working on a #project/backend task.
-```
-
-### Smart Frontmatter Merging
-
-The tool intelligently merges with existing frontmatter:
-
-**Before:**
-```markdown
----
-title: My Important Note
-author: John Doe
-tags:
-- existing-tag
----
-
-# Content
-
-Date: 2024-01-10
-
-This has a #new-tag in it.
-```
-
-**After:**
-```markdown
----
-author: John Doe
-created: '2024-01-10'
-modified: '2024-01-15'
-tags:
-- existing-tag
-- new-tag
-title: My Important Note
----
-
-# Content
-
-This has a  in it.
-```
-
-### Supported Tag Formats
-
-- Simple tags: `#tag`
-- Nested tags: `#category/subcategory`
-- Hyphenated tags: `#long-tag-name`
-- Mixed formats: `#project/web-development`
-
-### What Gets Ignored
-
-- Tags within words (e.g., `email@domain.com#hashtag`)
-- Tags in code blocks
-- Malformed tags
-
-## Behavior & Safety
-
-### Backup Strategy
-
-The tool prioritizes file safety through a comprehensive backup strategy:
-
-- **Automatic Backups**: Before modifying any file, creates a backup with `.bak` extension (configurable via `--backup-ext`)
-- **Backup Location**: Backups are created in the same directory as the original file
-- **Backup Retention**: Existing backups are overwritten on subsequent runs
-- **Restoration**: Simply remove the extension to restore from backup (e.g., `note.md.bak` → `note.md`)
-
-### Merge Rules
-
-The tool follows intelligent merge rules when processing frontmatter:
-
-#### Tag Merging
-- **Preservation**: Existing tags in frontmatter are preserved
-- **Deduplication**: Duplicate tags are automatically removed
-- **Alphabetical Sorting**: Final tag list is sorted alphabetically
-- **Format Consistency**: All tags are converted to lowercase with consistent formatting
-
-#### Creation Date Handling
-- **Non-destructive**: Only adds `created` field if it doesn't already exist
-- **Earliest Date**: Uses the earliest date found between body content and file metadata
-- **Body Date Extraction**: Recognizes various date formats in the first 10 lines of content
-- **Format**: ISO date format (YYYY-MM-DD) enclosed in quotes
-
-#### Modification Date Handling
-- **Always Updated**: `modified` field is always updated with current file modification time
-- **Source**: Uses file system modification time
-- **Format**: ISO date format (YYYY-MM-DD) enclosed in quotes
-
-#### Frontmatter Structure
-- **Field Ordering**: Properties are ordered as: `created`, `modified`, `meeting-transcript`, `tags`, then other existing fields
-- **Existing Fields**: All existing frontmatter fields are preserved
-- **YAML Compliance**: Ensures valid YAML syntax throughout
-
-### Safety Features
-
-- **Dry Run Mode**: Preview all changes with `--dry-run` before applying
-- **UTF-8 Encoding**: Properly handles Unicode characters and international text
-- **Error Handling**: Graceful error handling with informative messages
-- **Validation**: Validates YAML syntax before writing files
-- **Atomic Operations**: Files are processed atomically to prevent corruption
 
 ## Development
 
-### Setup Development Environment
-
 ```bash
-git clone https://github.com/aturcati/obsistant.git
-cd obsistant
 uv sync --dev
+uv run pytest
+uv run ruff check .
+uv run ruff format .
 ```
 
-## Project Structure
+---
+
+## Project structure
 
 ```
 obsistant/
 ├── obsistant/
-│   ├── __init__.py
-│   ├── cli.py              # Command line interface
-│   ├── utils.py            # Utility functions
-│   ├── core/               # Core processing functions
-│   │   ├── frontmatter.py  # Frontmatter parsing and merging
-│   │   ├── tags.py         # Tag extraction
-│   │   ├── formatting.py   # Markdown formatting
-│   │   ├── dates.py        # Date parsing and extraction
-│   │   └── file_processing.py  # File processing logic
-│   ├── vault/              # Vault-wide operations
-│   │   ├── processor.py    # Vault processing orchestration
-│   │   └── init.py        # Vault initialization
-│   ├── meetings/           # Meeting-specific operations
-│   │   └── processor.py   # Meeting processing and archiving
-│   ├── notes/              # Notes organization
-│   │   └── processor.py   # Notes and quick notes processing
-│   ├── backup/             # Backup and restore
-│   │   └── operations.py  # Backup operations
-│   ├── config/             # Configuration management
-│   │   ├── schema.py      # Configuration schema
-│   │   └── loader.py      # Config loading and saving
-│   └── agents/             # Future AI agents integration
-│       └── README.md
-├── tests/                  # Test suite
-├── pyproject.toml          # Project configuration
-├── README.md
-├── AGENTS.md               # Agent instructions
-└── LICENSE
+│   ├── cli.py       # CLI entrypoint
+│   ├── core/        # Frontmatter, tags, dates, formatting
+│   ├── vault/       # Vault orchestration and init
+│   ├── meetings/    # Meeting processing
+│   ├── notes/       # Notes organization
+│   ├── backup/      # Backup/restore
+│   ├── config/      # Config schema and loading
+│   └── agents/      # CrewAI agent flows
+├── tests/
+├── AGENTS.md
+└── pyproject.toml
 ```
 
-## Requirements
-
-- Python 3.9+
-- PyYAML >= 6.0
-- Click >= 8.1
-- mdformat >= 0.7.22
+---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see `LICENSE`.
 
-## Support
-
-If you encounter any issues or have questions:
-
-1. Check the [Issues](https://github.com/aturcati/obsistant/issues) page
-2. Create a new issue if your problem isn't already listed
-3. Provide detailed information about your setup and the issue
-
-## Acknowledgments
-
-- [Obsidian](https://obsidian.md/) for creating an amazing knowledge management tool
-- [mdformat](https://github.com/executablebooks/mdformat) for markdown formatting capabilities
-- [Click](https://click.palletsprojects.com/) for the excellent CLI framework
+For issues, open a GitHub issue with OS, Python version, CLI logs (`--verbose`), and a minimal vault example if possible.
