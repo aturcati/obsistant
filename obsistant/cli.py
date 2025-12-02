@@ -10,12 +10,16 @@ import click
 from loguru import logger
 
 from . import __version__
+from .agents import calendar_kickoff, deep_research_kickoff
 from .backup import clear_backups as clear_backups_func
 from .backup import create_vault_backup
 from .backup import restore_files as restore_files_func
-from .config import load_config
+from .config import load_config, save_config
+from .core.calendar_auth import authenticate_google_calendar
 from .meetings import process_meetings_folder
 from .notes import process_notes_folder, process_quick_notes_folder
+from .qdrant import is_qdrant_running, start_qdrant_server, stop_qdrant_server
+from .qdrant.ingest import ingest_documents
 from .vault import init_vault, process_vault
 
 
@@ -629,7 +633,8 @@ def init(
 
     This command will:
     - Create the recommended vault folder structure
-    - Create a config.yaml file with default configuration values
+    - Create .obsistant/ folder for utility files
+    - Create .obsistant/config.yaml file with default configuration values
     """
     logger = setup_logger(verbose)
 
@@ -640,7 +645,7 @@ def init(
             skip_folders=skip_folders,
         )
         logger.info(f"Vault initialized at {vault_path}")
-        logger.info("Created config.yaml with default values")
+        logger.info("Created .obsistant/config.yaml with default values")
         if not skip_folders:
             logger.info("Created recommended folder structure")
     except FileExistsError as e:
@@ -648,6 +653,367 @@ def init(
         raise click.ClickException(str(e)) from e
     except Exception as e:
         logger.error(f"Error initializing vault: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="calendar-login")
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def calendar_login(vault_path: Path, verbose: bool) -> None:
+    """Authenticate with Google Calendar API.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will:
+    - Create .obsistant/ folder if it doesn't exist
+    - Look for credentials.json in .obsistant/ (or path from .obsistant/config.yaml)
+    - Run OAuth flow to authenticate with Google Calendar
+    - Save token.json to .obsistant/ (or path from .obsistant/config.yaml)
+    - Update .obsistant/config.yaml with credential paths if not already set
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        # Load or create config
+        config = load_config(vault_path)
+        if config is None:
+            from .config import Config
+
+            config = Config()
+            logger.info("No config.yaml found in .obsistant/, using defaults")
+
+        # Get credential paths from config
+        credentials_path = Path(config.calendar.credentials_path)
+        token_path = Path(config.calendar.token_path)
+
+        # Ensure .obsistant folder exists
+        obsistant_dir = vault_path / ".obsistant"
+        obsistant_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Ensured .obsistant/ folder exists at {obsistant_dir}")
+
+        # Resolve paths relative to vault_path if not absolute
+        if not credentials_path.is_absolute():
+            credentials_path = vault_path / credentials_path
+        if not token_path.is_absolute():
+            token_path = vault_path / token_path
+
+        # Check if credentials.json exists
+        if not credentials_path.exists():
+            logger.error(
+                f"credentials.json not found at {credentials_path}. "
+                "Please place your Google OAuth credentials file there."
+            )
+            raise click.ClickException(
+                f"credentials.json not found at {credentials_path}"
+            )
+
+        logger.info(f"Found credentials.json at {credentials_path}")
+        logger.info("Starting OAuth flow...")
+
+        # Authenticate (will run OAuth flow if needed)
+        creds = authenticate_google_calendar(vault_path, credentials_path, token_path)
+
+        if creds and creds.valid:
+            logger.info(f"Successfully authenticated! Token saved to {token_path}")
+
+            # Update config.yaml if paths are not already set to defaults
+            # (in case user had custom paths, we don't overwrite)
+            if (
+                config.calendar.credentials_path != ".obsistant/credentials.json"
+                or config.calendar.token_path != ".obsistant/token.json"
+            ):
+                logger.info("Updating config.yaml with credential paths...")
+                save_config(config, vault_path)
+            else:
+                # Ensure config.yaml exists with defaults
+                config_path = vault_path / ".obsistant" / "config.yaml"
+                if not config_path.exists():
+                    logger.info("Creating config.yaml with default credential paths...")
+                    save_config(config, vault_path)
+
+            logger.info("Calendar login completed successfully!")
+        else:
+            raise click.ClickException("Authentication failed")
+
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        raise click.ClickException(str(e)) from e
+    except Exception as e:
+        logger.error(f"Error during calendar login: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def calendar(vault_path: Path, verbose: bool) -> None:
+    """Run the CrewAI calendar flow to generate weekly events summary.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will:
+    - Fetch next week's calendar events
+    - Generate a summary of upcoming events
+    - Save the summary to Weekly Summaries folder in the meetings directory
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        config, effective = get_config_or_default(vault_path)
+        meetings_folder = effective["meetings_folder"]
+
+        logger.info(f"Running calendar flow for vault at {vault_path}...")
+        calendar_kickoff(vault_path=str(vault_path), meetings_folder=meetings_folder)
+        logger.info("Calendar flow completed successfully!")
+        logger.info(f"Summary saved to {meetings_folder}/Weekly Summaries/")
+    except Exception as e:
+        logger.error(f"Error running calendar flow: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.argument("query", type=str)
+@click.option(
+    "--quick-notes-folder",
+    default="00-Quick Notes",
+    help="Name of the quick notes folder within the vault (default: 00-Quick Notes)",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def research(
+    vault_path: Path, query: str, quick_notes_folder: str, verbose: bool
+) -> None:
+    """Run the CrewAI deep research flow to perform comprehensive research on a query.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+    QUERY: The research query to investigate
+
+    This command will:
+    - Perform deep research on the query using multiple agents
+    - Validate and fact-check the research findings
+    - Generate a comprehensive research report
+    - Save the report to the Quick Notes folder with proper frontmatter
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        config, effective = get_config_or_default(
+            vault_path, quick_notes_folder=quick_notes_folder
+        )
+        quick_notes = effective.get("quick_notes_folder", quick_notes_folder)
+
+        logger.info(f"Running deep research flow for vault at {vault_path}...")
+        logger.info(f"Research query: {query}")
+        deep_research_kickoff(
+            vault_path=str(vault_path),
+            user_query=query,
+            quick_notes_folder=quick_notes,
+        )
+        logger.info("Deep research flow completed successfully!")
+        logger.info(f"Report saved to {quick_notes}/")
+    except Exception as e:
+        logger.error(f"Error running deep research flow: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@cli.group()
+def qdrant() -> None:
+    """Manage Qdrant vector database server for RAG operations.
+
+    This command group provides subcommands to start and stop a local Qdrant
+    server running in Docker. The server storage is placed in the vault's
+    .obsistant/qdrant_storage/ directory.
+    """
+    pass
+
+
+@qdrant.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option(
+    "--http-port",
+    type=int,
+    default=6333,
+    help="HTTP API port (default: 6333)",
+)
+@click.option(
+    "--grpc-port",
+    type=int,
+    default=6334,
+    help="gRPC API port (default: 6334)",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def start(
+    vault_path: Path,
+    http_port: int,
+    grpc_port: int,
+    verbose: bool,
+) -> None:
+    """Start Qdrant server in Docker for the vault.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will:
+    - Create .obsistant/qdrant_storage/ directory if it doesn't exist
+    - Start Qdrant server in a Docker container
+    - Mount the storage directory to persist data
+    - Expose HTTP API on port 6333 and gRPC API on port 6334 (configurable)
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        if is_qdrant_running(vault_path):
+            logger.info("Qdrant server is already running for this vault")
+            logger.info(f"Dashboard: http://localhost:{http_port}/dashboard")
+            return
+
+        container_id = start_qdrant_server(vault_path, ports=(http_port, grpc_port))
+        logger.info("Qdrant server started successfully")
+        logger.info(f"Container ID: {container_id}")
+        logger.info(f"HTTP API: http://localhost:{http_port}")
+        logger.info(f"gRPC API: localhost:{grpc_port}")
+        logger.info(f"Dashboard: http://localhost:{http_port}/dashboard")
+        logger.info(f"Storage: {vault_path}/.obsistant/qdrant_storage/")
+    except Exception as e:
+        logger.error(f"Error starting Qdrant server: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@qdrant.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def stop(vault_path: Path, verbose: bool) -> None:
+    """Stop Qdrant server for the vault.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will stop the Docker container running Qdrant for this vault.
+    """
+    logger = setup_logger(verbose)
+
+    try:
+        stopped = stop_qdrant_server(vault_path)
+        if stopped:
+            logger.info("Qdrant server stopped successfully")
+        else:
+            logger.info("Qdrant server was not running")
+    except Exception as e:
+        logger.error(f"Error stopping Qdrant server: {e}")
+        raise click.ClickException(str(e)) from e
+
+
+@qdrant.command()
+@click.argument(
+    "vault_path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option(
+    "--collection",
+    default="obsistant-notes",
+    help="Qdrant collection name (default: obsistant-notes)",
+)
+@click.option(
+    "--include-pdfs/--no-include-pdfs",
+    default=False,
+    help="Include PDF files in ingestion (default: False)",
+)
+@click.option(
+    "--recreate-collection",
+    is_flag=True,
+    help="Delete and recreate the collection before ingestion",
+)
+@click.option(
+    "--dry-run",
+    "-n",
+    is_flag=True,
+    help="Show what would be done without actually ingesting",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def ingest(
+    vault_path: Path,
+    collection: str,
+    include_pdfs: bool,
+    recreate_collection: bool,
+    dry_run: bool,
+    verbose: bool,
+) -> None:
+    """Ingest documents from vault into Qdrant vector database.
+
+    VAULT_PATH: Path to the Obsidian vault directory
+
+    This command will:
+    - Collect markdown files from notes and meetings folders (excluding Weekly Summaries)
+    - Optionally include PDF files if --include-pdfs is set
+    - Chunk documents semantically using sentence similarity
+    - Generate embeddings using OpenAI text-embedding-3-large
+    - Store embeddings and metadata in Qdrant
+
+    Requires OPENAI_API_KEY to be set in .obsistant/.env or environment.
+    """
+    from .config.env_loader import load_vault_env
+
+    logger = setup_logger(verbose)
+
+    try:
+        # Load environment variables
+        load_vault_env(vault_path)
+
+        # Check if Qdrant server is running
+        if not is_qdrant_running(vault_path):
+            logger.error("Qdrant server is not running.")
+            logger.info(
+                f"Please start it first with: obsistant qdrant start {vault_path}"
+            )
+            raise click.ClickException("Qdrant server is not running")
+
+        # Load config
+        config, _ = get_config_or_default(vault_path)
+
+        if dry_run:
+            logger.info("DRY RUN: Would ingest documents into Qdrant")
+        else:
+            logger.info(f"Ingesting documents into collection '{collection}'")
+
+        # Ingest documents
+        stats = ingest_documents(
+            vault_path=vault_path,
+            config=config,
+            collection_name=collection,
+            include_pdfs=include_pdfs,
+            recreate_collection=recreate_collection,
+            dry_run=dry_run,
+            logger_instance=logger,
+        )
+
+        # Display summary
+        logger.info("Ingestion complete!")
+        logger.info(f"Files processed: {stats['files_processed']}")
+        if stats.get("files_skipped", 0) > 0:
+            logger.info(f"Files skipped (unchanged): {stats['files_skipped']}")
+        logger.info(f"Chunks created: {stats['chunks_created']}")
+        logger.info(f"Embeddings generated: {stats['embeddings_generated']}")
+        if stats["errors"]:
+            logger.warning(f"Errors encountered: {len(stats['errors'])}")
+            if verbose:
+                for error in stats["errors"]:
+                    logger.error(f"  - {error}")
+
+    except Exception as e:
+        logger.error(f"Error ingesting documents: {e}")
         raise click.ClickException(str(e)) from e
 
 

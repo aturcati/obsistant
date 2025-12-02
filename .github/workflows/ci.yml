@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -38,6 +38,7 @@ jobs:
       run: uv run ty check obsistant
 
     - name: Run tests
+      # Note: All tests are mocked and don't require external services (Docker, Google OAuth, Qdrant server)
       run: uv run pytest --cov=obsistant --cov-report=xml
 
     - name: Upload coverage to Codecov

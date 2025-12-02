@@ -14,7 +14,7 @@ def init_vault(
 ) -> None:
     """Initialize a new vault with directory structure and config.yaml.
 
-    Creates the recommended vault structure and a config.yaml file with default values.
+    Creates the recommended vault structure and a config.yaml file in .obsistant/ folder with default values.
 
     Args:
         vault_path: Path where the vault should be created.
@@ -26,6 +26,18 @@ def init_vault(
     """
     # Create vault directory if it doesn't exist
     vault_path.mkdir(parents=True, exist_ok=True)
+
+    # Create .obsistant folder (utility folder, always created)
+    obsistant_dir = vault_path / ".obsistant"
+    obsistant_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create storage directory for CrewAI memory
+    storage_dir = obsistant_dir / "storage"
+    storage_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create qdrant_storage directory for Qdrant vector database
+    qdrant_storage_dir = obsistant_dir / "qdrant_storage"
+    qdrant_storage_dir.mkdir(parents=True, exist_ok=True)
 
     # Create folder structure
     if not skip_folders:
@@ -55,8 +67,8 @@ def init_vault(
         for subfolder in notes_subfolders:
             (notes_path / subfolder).mkdir(exist_ok=True)
 
-    # Create config.yaml
-    config_path = vault_path / "config.yaml"
+    # Create config.yaml in .obsistant folder
+    config_path = obsistant_dir / "config.yaml"
     if config_path.exists() and not overwrite_config:
         raise FileExistsError(
             f"config.yaml already exists at {config_path}. Use --overwrite-config to overwrite."

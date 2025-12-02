@@ -1,0 +1,6 @@
+get_next_week_events_task:
+  description: >
+    Get next week's calendar events (today: {today}). Use vault path {vault_path} for config.yaml. Include all event details.
+  expected_output: >
+    JSON object with 'events' array. Each event: calendar, title, date, start_time, end_time, attendees (array), location (string|null), description (string|null). Return ONLY valid JSON, no markdown.
+  agent: calendar_assistant

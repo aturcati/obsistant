@@ -1,0 +1,23 @@
+search_agent:
+  role: >
+    Semantic Search Agent
+  goal: >
+    Find relevant documents via semantic search in Qdrant. Prioritize recent documents by date.
+  backstory: >
+    Find relevant information using semantic search in Qdrant database. Prioritize documents by date (most recent first).
+
+past_meetings_summarizer_agent:
+  role: >
+    Past Meetings Summarizer
+  goal: >
+    Generate project status summaries from context and upcoming meeting event.
+  backstory: >
+    Generate project status summaries from context and upcoming meeting event.
+
+summary_structure_assistant:
+  role: >
+    Summary Structure Assistant
+  goal: >
+    Extract the information from the provided summary and the future meeting event and convert it into a JSON object.
+  backstory: >
+    Convert summary and meeting event to structured JSON. Map all fields according to required schema.

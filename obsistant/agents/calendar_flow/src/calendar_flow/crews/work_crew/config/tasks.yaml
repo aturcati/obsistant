@@ -1,0 +1,25 @@
+search_past_meetings_task:
+  description: >
+    Search for documents related to work event: {event}. Use event title for search. Return empty list if no title provided.
+  expected_output: >
+    A list of relevant documents with their similarity scores and metadata. If no relevant documents are found, return an empty list.
+  agent: search_agent
+
+summarize_past_meetings_task:
+  description: >
+    Generate summary of previous meetings and project status for event: {event}. Prioritize documents by 'created' date (most recent first). Use documents <1 month old for context, most recent for summary. Validate document relevance by 'tags' property to match event project and ignore documents that do not match. Return single paragraph (no sections). Return empty string if no relevant documents. Do not use information of other projects in the summary.
+  expected_output: >
+    A summary of what was discussed in previous meetings for this project, and what is the status of the project. If no relevant documents are found, return an empty string.
+  agent: past_meetings_summarizer_agent
+  context:
+  - search_past_meetings_task
+
+structure_summary_task:
+  description: >
+    Convert work event summary to JSON. Use {event} for event fields. Use previous meetings summary for 'summary' field (empty string if no summary). Focus on practical information.
+  expected_output: >
+    JSON object with event fields (calendar, title, date, start_time, end_time, attendees, location, description) plus 'summary' field (previous meetings status).
+  agent: summary_structure_assistant
+  context:
+  - search_past_meetings_task
+  - summarize_past_meetings_task
