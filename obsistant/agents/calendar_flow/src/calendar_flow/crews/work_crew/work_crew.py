@@ -1,14 +1,9 @@
 import os
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from crewai import Agent, Crew, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
-from crewai.knowledge.source.base_knowledge_source import BaseKnowledgeSource
-from crewai.knowledge.source.text_file_knowledge_source import (
-    TextFileKnowledgeSource,
-)
 from crewai.project import CrewBase, agent, crew, task
 from crewai_tools.tools.qdrant_vector_search_tool.qdrant_search_tool import (
     QdrantConfig,
@@ -24,6 +19,7 @@ from obsistant.agents.calendar_flow.src.calendar_flow.tools.qdrant_search_tool i
 from obsistant.agents.common.llm_config import (
     create_llm_with_retries,
 )
+from obsistant.core.memory_storage import get_knowledge_sources
 
 if TYPE_CHECKING:
     from typing import Any
@@ -63,7 +59,7 @@ class WorkCrew:
                 qmodels.FieldCondition(
                     key="created",
                     range=qmodels.DatetimeRange(
-                        gte=datetime.now() - timedelta(days=14)
+                        gte=datetime.now() - timedelta(days=31)
                     ),
                 ),
             ]
@@ -74,7 +70,7 @@ class WorkCrew:
             tools=[qdrant_tool],
             llm=llm,
             max_rpm=50,
-            max_iter=5,
+            max_iter=7,
             verbose=True,
         )
 
@@ -121,21 +117,6 @@ class WorkCrew:
             output_pydantic=WorkEvent,
         )  # type: ignore[call-arg]
 
-    def _get_knowledge_sources(self) -> list[BaseKnowledgeSource]:
-        """Get knowledge sources for the work crew.
-
-        CrewAI's TextFileKnowledgeSource expects files in a 'knowledge' directory
-        relative to the current working directory. The working directory is set
-        to the storage directory before crew creation, so CrewAI can find the files.
-        """
-        # Check if knowledge file exists relative to current working directory
-        # (which should be set to storage_dir before crew creation)
-        knowledge_file = Path("knowledge") / "user_preference.md"
-        if knowledge_file.exists():
-            # CrewAI prepends 'knowledge/' to paths, so we provide just the filename
-            return [TextFileKnowledgeSource(file_paths=["user_preference.md"])]
-        return []
-
     @crew
     def crew(self) -> Crew:
         """Creates the WorkCrew crew"""
@@ -145,6 +126,6 @@ class WorkCrew:
             tasks=self.tasks,
             process=Process.sequential,
             memory=True,
-            knowledge_sources=self._get_knowledge_sources(),
+            knowledge_sources=get_knowledge_sources(),
             verbose=True,
         )
