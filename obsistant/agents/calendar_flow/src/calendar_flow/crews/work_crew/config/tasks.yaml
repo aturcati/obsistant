@@ -7,7 +7,7 @@ search_past_meetings_task:
 
 summarize_past_meetings_task:
   description: >
-    Generate summary of previous meetings and project status for event: {event}. Prioritize documents by 'created' date (most recent first). Use documents <1 month old for context, most recent for summary. Filter by 'tag' property to match event project. Return single paragraph (no sections). Return empty string if no relevant documents. Do not use information of other projects in the summary.
+    Generate summary of previous meetings and project status for event: {event}. Prioritize documents by 'created' date (most recent first). Use documents <1 month old for context, most recent for summary. Validate document relevance by 'tags' property to match event project and ignore documents that do not match. Return single paragraph (no sections). Return empty string if no relevant documents. Do not use information of other projects in the summary.
   expected_output: >
     A summary of what was discussed in previous meetings for this project, and what is the status of the project. If no relevant documents are found, return an empty string.
   agent: past_meetings_summarizer_agent
