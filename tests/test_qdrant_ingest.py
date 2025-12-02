@@ -70,7 +70,7 @@ def test_parse_markdown_file_with_frontmatter(
     assert "metadata" in result
     assert "file_path" in result
     assert result["metadata"]["tags"] == ["test"]
-    assert result["document_type"] == "note"
+    assert result["metadata"]["document_type"] == "note"
 
 
 def test_parse_markdown_file_without_frontmatter(
@@ -82,7 +82,7 @@ def test_parse_markdown_file_without_frontmatter(
 
     assert "content" in result
     assert "metadata" in result
-    assert result["document_type"] == "note"
+    assert result["metadata"]["document_type"] == "note"
     assert "created" in result["metadata"]
 
 
@@ -141,13 +141,23 @@ def test_parse_pdf_file_requires_pdfplumber(tmp_path: Path) -> None:
 
     vault_path = tmp_path
 
-    # Mock import error
-    with patch(
-        "builtins.__import__", side_effect=ImportError("No module named 'pdfplumber'")
-    ):
-        with pytest.raises(ImportError, match="pdfplumber is required"):
-            from obsistant.qdrant.ingest import parse_pdf_file
+    # Import the function first
+    # Import the original __import__ to use for non-pdfplumber imports
+    import builtins
 
+    from obsistant.qdrant.ingest import parse_pdf_file
+
+    original_import = builtins.__import__
+
+    # Mock import error when pdfplumber is imported inside the function
+    def mock_import(name, *args, **kwargs):
+        if name == "pdfplumber":
+            raise ImportError("No module named 'pdfplumber'")
+        # Use the real import for everything else
+        return original_import(name, *args, **kwargs)
+
+    with patch("builtins.__import__", side_effect=mock_import):
+        with pytest.raises(ImportError, match="pdfplumber is required"):
             parse_pdf_file(pdf_path, vault_path)
 
 
