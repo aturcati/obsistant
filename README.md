@@ -248,7 +248,7 @@ Tag extraction uses regex `(?<!\w)#([\w/-]+)`, ignores code blocks and malformed
 # Using uv (recommended)
 uv add obsistant
 # or globally
-uv tool install obsistant
+uv tool install git+https://github.com/aturcati/obsistant.git
 
 # Using pip
 pip install obsistant
