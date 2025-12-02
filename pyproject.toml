@@ -77,6 +77,9 @@ Changelog = "https://github.com/aturcati/obsistant/blob/main/CHANGELOG.md"
 where = ["."]
 include = ["obsistant*"]
 
+[tool.setuptools.package-data]
+obsistant = ["**/*.yaml", "**/*.yml"]
+
 # Ruff configuration
 [tool.ruff]
 line-length = 88
